@@ -1,17 +1,14 @@
-'''
-    ##  Implementation of peer
-    ##  Each peer has a client and a server side that runs on different threads
-    ##  150114822 - Eren Ulaş
-'''
 
+import re
 from socket import *
 import threading
 import time
 import select
 import logging
 import bcrypt
+from colorama import Fore, Back, Style, init
 
-
+init(autoreset=True)
 # Server side of peer
 class PeerServer(threading.Thread):
 
@@ -41,7 +38,7 @@ class PeerServer(threading.Thread):
     # main method of the peer server thread
     def run(self):
 
-        print("Peer server started...")
+        print(Fore.GREEN + "Peer server started...")
 
         # gets the ip address of this peer
         # first checks to get it for windows devices
@@ -126,7 +123,8 @@ class PeerServer(threading.Thread):
                         # if a message is received, and if this is not a quit message ':q' and 
                         # if it is not an empty message, show this message to the user
                         elif messageReceived[:2] != ":q" and len(messageReceived) != 0:
-                            print(self.chattingClientName + ": " + messageReceived+"\n") #print a space after the msg is shown
+                            print(
+                                self.chattingClientName + ": " + messageReceived + "\n")  # print a space after the msg is shown
                         # if the message received is a quit message ':q',
                         # makes ischatrequested 1 to receive new incoming request messages
                         # removes the socket of the connected peer from the inputs list
@@ -177,7 +175,7 @@ class PeerClient(threading.Thread):
 
     # main method of the peer client thread
     def run(self):
-        print("Peer client started...")
+        print(Fore.GREEN + "Peer client started...")
         # connects to the server of other peer
         self.tcpClientSocket.connect((self.ipToConnect, self.portToConnect))
         # if the server of this peer is not connected by someone else and if this is the requester side peer client
@@ -315,24 +313,24 @@ class peerMain:
             choice = input("Choose: \nCreate account: 1\nLogin: 2\nExit: 3\nSearch: 4\nStart a chat: 5\n")
             # if choice is 1, creates an account with the username
             # and password entered by the user
-            if choice is "1":
+            if choice == "1":
                 username = input("username: ")
                 password = input("password: ")
 
                 self.createAccount(username, password)
             # if choice is 2 and user is not logged in, asks for the username
             # and the password to login
-            elif choice is "2" and not self.isOnline:
+            elif choice == "2" and not self.isOnline:
                 username = input("username: ")
                 password = input("password: ")
                 # asks for the port number for server's tcp socket
                 # peerServerPort = int(input("Enter a port number for peer server: "))
                 peerServerPort = self.find_available_port()[0]
-                print("Your assigned peer server port is ", peerServerPort)
+                print(Fore.CYAN + "Your assigned peer server port is ", peerServerPort)
 
                 status = self.login(username, password, peerServerPort)
                 # is user logs in successfully, peer variables are set
-                if status is 1:
+                if status == 1:
                     self.isOnline = True
                     self.loginCredentials = (username, password)
                     self.peerServerPort = peerServerPort
@@ -343,7 +341,7 @@ class peerMain:
                     self.sendHelloMessage()
             # if choice is 3 and user is logged in, then user is logged out
             # and peer variables are set, and server and client sockets are closed
-            elif choice is "3" and self.isOnline:
+            elif choice == "3" and self.isOnline:
                 self.logout(1)
                 self.isOnline = False
                 self.loginCredentials = (None, None)
@@ -351,13 +349,13 @@ class peerMain:
                 self.peerServer.tcpServerSocket.close()
                 if self.peerClient is not None:
                     self.peerClient.tcpClientSocket.close()
-                print("Logged out successfully")
+                print(Fore.GREEN + "Logged out successfully")
             # is peer is not logged in and exits the program
-            elif choice is "3":
+            elif choice == "3":
                 self.logout(2)
             # if choice is 4 and user is online, then user is asked
             # for a username that is wanted to be searched
-            elif choice is "4" and self.isOnline:
+            elif choice == "4" and self.isOnline:
                 username = input("Username to be searched: ")
                 searchStatus = self.searchUser(
                     username)  # 000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
@@ -366,13 +364,13 @@ class peerMain:
                     print("IP address of " + username + " is " + searchStatus)
             # if choice is 5 and user is online, then user is asked
             # to enter the username of the user that is wanted to be chatted
-            elif choice is "5" and self.isOnline:
+            elif choice == "5" and self.isOnline:
                 username = input("Enter the username of user to start chat: ")
                 searchStatus = self.searchUser(username)
                 # if searched user is found, then its ip address and port number is retrieved
                 # and a client thread is created
                 # main process waits for the client thread to finish its chat
-                if searchStatus is not None and searchStatus is not 0:
+                if searchStatus is not None and searchStatus != 0:
                     searchStatus = searchStatus.split(":")
                     self.peerClient = PeerClient(searchStatus[0], int(searchStatus[1]), self.loginCredentials[0],
                                                  self.peerServer, None)
@@ -407,6 +405,13 @@ class peerMain:
 
     # account creation function
     def createAccount(self, username, password):
+        # Minimum eight characters, at least one letter and one number:
+        pattern = r"^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,}$"
+        if re.match(pattern, password):
+            pass
+        else:
+            print(Fore.CYAN + "Pass must be minimum eight characters, at least one letter and one number")
+            return
         # hash password
         salt = bcrypt.gensalt()
         hashed_password = bcrypt.hashpw(password.encode(), salt).decode()
@@ -419,14 +424,14 @@ class peerMain:
         response = self.tcpClientSocket.recv(1024).decode()
         logging.info("Received from " + self.registryName + " -> " + response)
         if response == "join-success":
-            print("Account created...")
+            print(Fore.GREEN + "Account created...")
         elif response == "join-exist":
-            print("choose another username or login...")
+            print(Fore.RED + "choose another username or login...")
 
     # login function
     def login(self, username, password, peerServerPort):
-        #hash password
 
+        # hash password
         # a login message is composed and sent to registry
         # an integer is returned according to each response
         message = "SALT " + username
@@ -440,16 +445,16 @@ class peerMain:
         response = self.tcpClientSocket.recv(1024).decode()
         logging.info("Received from " + self.registryName + " -> " + response)
         if response == "login-success":
-            print("Logged in successfully...")
+            print(Fore.GREEN + "Logged in successfully...")
             return 1
         elif response == "login-account-not-exist":
-            print("Account does not exist...")
+            print(Fore.RED + "Account does not exist...")
             return 0
         elif response == "login-online":
-            print("Account is already online...")
+            print(Fore.CYAN + "Account is already online...")
             return 2
         elif response == "login-wrong-password":
-            print("Wrong password...")
+            print(Fore.RED + "Wrong password...")
             return 3
 
     # logout function
@@ -506,7 +511,6 @@ class peerMain:
         finally:
             s.close()  # Close the socket after checking availability
         return available_ports
-
 
 
 # peer is started

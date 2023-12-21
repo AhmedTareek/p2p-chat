@@ -326,7 +326,9 @@ class peerMain:
                 username = input("username: ")
                 password = input("password: ")
                 # asks for the port number for server's tcp socket
-                peerServerPort = int(input("Enter a port number for peer server: "))
+                # peerServerPort = int(input("Enter a port number for peer server: "))
+                peerServerPort = self.find_available_port()[0]
+                print("Your assigned peer server port is ", peerServerPort)
 
                 status = self.login(username, password, peerServerPort)
                 # is user logs in successfully, peer variables are set
@@ -490,6 +492,21 @@ class peerMain:
         self.udpClientSocket.sendto(message.encode(), (self.registryName, self.registryUDPPort))
         self.timer = threading.Timer(1, self.sendHelloMessage)
         self.timer.start()
+
+    def find_available_port(self):
+        available_ports = []
+        s = socket(AF_INET, SOCK_STREAM)
+        try:
+            s.bind(('', 0))  # Try binding to the port
+            port = s.getsockname()[1]
+            available_ports.append(port)
+        except error as e:
+            print("No ports available")
+            pass  # Port is not available, continue checking the next one
+        finally:
+            s.close()  # Close the socket after checking availability
+        return available_ports
+
 
 
 # peer is started

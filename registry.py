@@ -2,7 +2,7 @@
     ##  Implementation of registry
     ##  150114822 - Eren Ulaş
 '''
-
+import time
 from socket import *
 import threading
 import select
@@ -31,14 +31,23 @@ class ClientThread(threading.Thread):
     # main of the thread
     def run(self):
         # locks for thread which will be used for thread synchronization
+        checking_thread = threading.Thread(target=self.check_pending_peers)
+        checking_thread.start()
         self.lock = threading.Lock()
         print("Connection from: " + self.ip + ":" + str(port))
         print("IP Connected: " + self.ip)
-
+        sending = SendToPeer(tcpClientSocket)
         while True:
+
             try:
+                # check if there are any pending peers want to connect with you in a group
+
                 # waits for incoming messages from peers
+
                 message = self.tcpClientSocket.recv(1024).decode().split()
+                if sending.is_running:
+                    sending.turnoff(False)
+                    sending.join()
                 logging.info("Received from " + self.ip + ":" + str(self.port) + " -> " + " ".join(message))
                 #   JOIN    #
                 if message[0] == "JOIN":
@@ -86,7 +95,7 @@ class ClientThread(threading.Thread):
                             finally:
                                 self.lock.release()
 
-                            db.user_login(message[1], self.ip, message[3])
+                            db.user_login(message[1], self.ip, message[3], message[4])
                             # login-success is sent to peer,
                             # and a udp server thread is created for this peer, and thread is started
                             # timer thread of the udp server is started
@@ -135,6 +144,7 @@ class ClientThread(threading.Thread):
                             response = "search-success " + peer_info[0] + ":" + peer_info[1]
                             logging.info("Send to " + self.ip + ":" + str(self.port) + " -> " + response)
                             self.tcpClientSocket.send(response.encode())
+                            # sending.start()
                         else:
                             response = "search-user-not-online"
                             logging.info("Send to " + self.ip + ":" + str(self.port) + " -> " + response)
@@ -148,6 +158,54 @@ class ClientThread(threading.Thread):
                 elif message[0] == "SALT":
                     salt = db.get_salt(message[1])
                     self.tcpClientSocket.send(salt.encode())
+                # join a group #
+                elif message[0] == "JOIN-GROUP":
+                    if not db.is_group_exists(message[1]):
+                        res = "GROUP-NOT-FOUND"
+                        self.tcpClientSocket.send(res.encode())
+                    else:
+                        peer_username = db.get_last_peer_in_group(message[1])
+                        # self.lock.acquire()
+                        pendingPeers[peer_username] = self.username
+                        # self.lock.release()
+
+                        while True:
+                            print("\rJoining ", end='', flush=True)
+                            time.sleep(0.5)
+                            print("\rJoining . ", end='', flush=True)
+                            time.sleep(0.5)
+                            print("\rJoining .. ", end='', flush=True)
+                            time.sleep(0.5)
+                            print("\rJoining ... ", end='', flush=True)
+                            time.sleep(0.5)
+                            print("peer status keys ", peerStatus.keys())
+                            if self.username in peerStatus.keys():
+                                stat = peerStatus[self.username]
+                                print("stat is ", stat)
+                                # self.lock.acquire()
+                                del peerStatus[self.username]
+                                # self.lock.release()
+                                break
+                        print("got out of the loop")
+                        if stat == 1:
+                            peer_addr = db.get_peer_ip_udp_port(peer_username)
+                            res = "SUCCESS " + peer_addr[0] + " " + peer_addr[1]
+                            self.tcpClientSocket.send(res.encode())
+                        elif stat == 0:
+                            res = "JOIN-REJECTED"
+                            self.tcpClientSocket.send(res.encode())
+
+                # create a group #
+                elif message[0] == "CREATE-GROUP":
+                    if db.is_group_exists(message[1]):
+                        res = "GROUP-EXISTS"
+                        self.tcpClientSocket.send(res.encode())
+                    else:
+                        db.add_group(message[1], self.username)
+                        res = "CREATED"
+                        self.tcpClientSocket.send(res.encode())
+
+
 
 
             except OSError as oErr:
@@ -157,6 +215,56 @@ class ClientThread(threading.Thread):
 
     def resetTimeout(self):
         self.udpServer.resetTimer()
+
+    def check_pending_peers(self):
+        while True:
+            if self.username is None:
+                name = "None"
+            else:
+                name = self.username
+            savedPeer = ""
+            # self.lock.acquire()
+            if self.username in pendingPeers:
+                savedPeer = pendingPeers[self.username]
+                del pendingPeers[self.username]
+            # self.lock.release()
+            time.sleep(1)
+            if savedPeer != "":
+                peer_data = db.get_peer_ip_udp_port(savedPeer)
+                msg = "CONNECT-LEFT " + peer_data[0] + " " + peer_data[1]
+                # send message to peer to connect the new user
+                self.tcpClientSocket.send(msg.encode())
+                print("sent the message to the peer to connect-left")
+                # res = self.tcpClientSocket.recv(1024).decode().split()
+                res = "CONNECTED-SUCCESS"
+                print("recived response", res)
+                # wait for confirmation then add the user to the connected or failed users
+                # self.lock.acquire()
+                if res == "CONNECTED-SUCCESS":
+                    peerStatus[savedPeer] = 1
+                elif res == "CONNECTED-FAILED":
+                    peerStatus[savedPeer] = 0
+                # self.lock.release()
+                print("peer status is", peerStatus[savedPeer])
+
+
+# a new class to allow sending messages to user when he is chatting
+class SendToPeer(threading.Thread):
+    def __init__(self, tcp_client_socket):
+        super().__init__()
+        self.chatting = True
+        self.tcpClientSocket = tcp_client_socket
+        self.is_running = False
+
+    def run(self):
+        self.is_running = True
+        while self.chatting:
+            msg = input("enter a msg to send to user")
+            self.tcpClientSocket.send(msg.encode())
+
+    def turnoff(self, is_chatting):
+        self.chatting = is_chatting
+        self.is_running = False
 
 
 # implementation of the udp server thread for clients
@@ -215,7 +323,11 @@ onlinePeers = {}
 # accounts list for accounts
 accounts = {}
 # tcpThreads list for online client's thread
-tcpThreads = {}  # it's a shared resource within all threads modify it using LOCKS
+tcpThreads = {}  # it's a shared resource within all threads --> modify it using LOCKS
+# list of peers who want to join a group
+pendingPeers = {}
+# list of Peerstatus
+peerStatus = {}
 
 # tcp and udp socket initializations
 tcpSocket = socket(AF_INET, SOCK_STREAM)
@@ -233,7 +345,7 @@ logging.basicConfig(filename="registry.log", level=logging.INFO)
 # as long as at least a socket exists to listen registry runs
 while inputs:
 
-    print("Listening for incoming connections...")
+    # print("Listening for incoming connections...")
     # monitors for the incoming connections
     readable, writable, exceptional = select.select(inputs, [], [])
     for s in readable:
@@ -255,7 +367,7 @@ while inputs:
                 if message[1] in tcpThreads:
                     # resets the timeout for that peer since the hello message is received
                     tcpThreads[message[1]].resetTimeout()
-                    print("Hello is received from " + message[1])
+                    # print("Hello is received from " + message[1])
                     logging.info(
                         "Received from " + clientAddress[0] + ":" + str(clientAddress[1]) + " -> " + " ".join(message))
 

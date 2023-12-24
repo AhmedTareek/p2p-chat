@@ -6,9 +6,13 @@ import time
 import select
 import logging
 import bcrypt
+
 from colorama import Fore, Back, Style, init
 
+# Initialize colorama - needed for Windows systems
 init(autoreset=True)
+
+
 # Server side of peer
 class PeerServer(threading.Thread):
 
@@ -289,6 +293,9 @@ class peerMain:
         self.tcpClientSocket.connect((self.registryName, self.registryPort))
         # initializes udp socket which is used to send hello messages
         self.udpClientSocket = socket(AF_INET, SOCK_DGRAM)
+        self.udpClientSocket.bind(('', 0))
+
+        self.udpPortNum = self.udpClientSocket.getsockname()[1]
         # udp port of the registry
         self.registryUDPPort = 15500
         # login info of the peer
@@ -303,6 +310,9 @@ class peerMain:
         self.peerClient = None
         # timer initialization
         self.timer = None
+        # group linked list left and right
+        self.left_group_member = [None, None]
+        self.right_group_member = [None, None]
 
         choice = "0"
         # log file initialization
@@ -310,7 +320,8 @@ class peerMain:
         # as long as the user is not logged out, asks to select an option in the menu
         while choice != "3":
             # menu selection prompt
-            choice = input("Choose: \nCreate account: 1\nLogin: 2\nExit: 3\nSearch: 4\nStart a chat: 5\n")
+            choice = input("Choose: \nCreate account: 1\nLogin: 2\nExit: 3\nSearch: 4\nStart a chat: 5\nJoin Chat "
+                           "Room: 6\nCreate Chat room: 7\n")
             # if choice is 1, creates an account with the username
             # and password entered by the user
             if choice == "1":
@@ -326,7 +337,7 @@ class peerMain:
                 # asks for the port number for server's tcp socket
                 # peerServerPort = int(input("Enter a port number for peer server: "))
                 peerServerPort = self.find_available_port()[0]
-                print(Fore.CYAN + "Your assigned peer server port is ", peerServerPort)
+                print("Your assigned peer server port is ", peerServerPort)
 
                 status = self.login(username, password, peerServerPort)
                 # is user logs in successfully, peer variables are set
@@ -375,7 +386,11 @@ class peerMain:
                     self.peerClient = PeerClient(searchStatus[0], int(searchStatus[1]), self.loginCredentials[0],
                                                  self.peerServer, None)
                     self.peerClient.start()
+                    l = Listener(self.tcpClientSocket)
+                    l.start()
                     self.peerClient.join()
+                    l.turnoff(False)
+                    l.join()
             # if this is the receiver side then it will get the prompt to accept an incoming request during the main
             # loop that's why response is evaluated in main process not the server thread even though the prompt is
             # printed by server if the response is ok then a client is created for this peer with the OK message and
@@ -398,6 +413,30 @@ class peerMain:
             elif choice == "CANCEL":
                 self.timer.cancel()
                 break
+            # if peer wants to join a group
+            elif choice == "6" and self.isOnline:
+                ret = self.join_group(input("Enter the group you want to join\n"))
+                if ret == 1:
+                    group_chat = GroupChat(self.udpClientSocket, self.left_group_member, self.right_group_member,
+                                           self.tcpClientSocket)
+                    group_chat.start()
+                    group_chat.join()
+                elif ret == 0:
+                    print("Group you are searching for is not found")
+                elif ret == -1:
+                    print("Your Join request to group is rejected")
+            # if peer wants to create a group
+            elif choice == "7" and self.isOnline:
+                ret = self.create_group(input("Enter the group name you want to create\n"))
+                if ret == 1:
+                    print("Group Created Successfully")
+                    group_chat = GroupChat(self.udpClientSocket, self.left_group_member, self.right_group_member,
+                                           self.tcpClientSocket, True)
+                    group_chat.start()
+                    group_chat.join()
+                elif ret == 0:
+                    print("Group already exists")
+
         # if main process is not ended with cancel selection
         # socket of the client is closed
         if choice != "CANCEL":
@@ -430,8 +469,8 @@ class peerMain:
 
     # login function
     def login(self, username, password, peerServerPort):
-
         # hash password
+
         # a login message is composed and sent to registry
         # an integer is returned according to each response
         message = "SALT " + username
@@ -439,7 +478,7 @@ class peerMain:
         salt = self.tcpClientSocket.recv(1024).decode()
 
         hashed_password = bcrypt.hashpw(password.encode(), salt.encode()).decode()
-        message = "LOGIN " + username + " " + hashed_password + " " + str(peerServerPort)
+        message = "LOGIN " + username + " " + hashed_password + " " + str(peerServerPort) + " " + str(self.udpPortNum)
         logging.info("Send to " + self.registryName + ":" + str(self.registryPort) + " -> " + message)
         self.tcpClientSocket.send(message.encode())
         response = self.tcpClientSocket.recv(1024).decode()
@@ -498,6 +537,32 @@ class peerMain:
         self.timer = threading.Timer(1, self.sendHelloMessage)
         self.timer.start()
 
+    def join_group(self, group_name="hard code"):
+        message = "JOIN-GROUP " + group_name
+        self.tcpClientSocket.send(message.encode())
+        response = self.tcpClientSocket.recv(1024).decode().split()
+        # if joined give the peer the address of the last group member in the linked list (group)
+        print(response)
+        if response[0] == "SUCCESS":
+            self.right_group_member[0] = response[1]
+            self.right_group_member[1] = int(response[2])
+            print("my right", self.right_group_member)
+            print("my left", self.left_group_member)
+            return 1
+        elif response[0] == "JOIN-REJECTED":
+            return -1
+        elif response[0] == "GROUP-NOT-FOUND":
+            return 0
+
+    def create_group(self, group_name):
+        message = "CREATE-GROUP " + group_name
+        self.tcpClientSocket.send(message.encode())
+        response = self.tcpClientSocket.recv(1024).decode().split()
+        if response[0] == "CREATED":
+            return 1
+        elif response[0] == "GROUP-EXISTS":
+            return 0
+
     def find_available_port(self):
         available_ports = []
         s = socket(AF_INET, SOCK_STREAM)
@@ -511,6 +576,74 @@ class peerMain:
         finally:
             s.close()  # Close the socket after checking availability
         return available_ports
+
+
+class GroupChat(threading.Thread):
+    def __init__(self, udp_socket, left, right, centralized_server_socket, is_host=False):
+        super().__init__()
+        self.udpClientSocket = udp_socket
+        self.left = left
+        self.right = right
+        self.tcpClientSocket = centralized_server_socket
+        self.is_host = is_host
+
+    def run(self):
+        monitor_thread = threading.Thread(target=self.monitor)
+        read_thread = threading.Thread(target=self.read)
+        monitor_thread.start()
+        read_thread.start()
+        while self.left[0] is not None or self.right[0] is not None or self.is_host:
+            print(self.left)
+            print(self.right)
+            msg = input("[gp:hard-code]")
+            if self.left[0] is not None:
+                self.udpClientSocket.sendto(msg.encode(), (self.left[0], self.left[1]))
+                print(Fore.CYAN + "send to the left")
+            if self.right[0] is not None:
+                self.udpClientSocket.sendto(msg.encode(), (self.right[0], self.right[1]))
+                print(Fore.CYAN + "send to the right")
+
+    def read(self):
+        while self.left[0] is not None or self.right[0] is not None or self.is_host:
+            message, clientAddress = self.udpClientSocket.recvfrom(2048)
+            if clientAddress[0] == self.left[0] and clientAddress[1] == self.left[1] and self.right[0] is not None:
+                self.udpClientSocket.sendto(message, (self.right[0], self.right[1]))
+            elif clientAddress[0] == self.right[0] and clientAddress[1] == self.right[1] and self.left[0] is not None:
+                self.udpClientSocket.sendto(message, (self.left[0], self.left[1]))
+            print(Fore.YELLOW + message.decode())
+
+    def monitor(self):
+        while True:
+            try:
+                print("waiting for msg")
+                msg = self.tcpClientSocket.recv(1024).decode().split()
+                print(msg)
+                if msg[0] == "CONNECT-LEFT":
+                    self.left[0] = msg[1]
+                    self.left[1] = int(msg[2])
+
+                    res = "CONNECTED-SUCCESS"
+                    # self.tcpClientSocket.send(res.encode())
+                elif msg[0] == "REPLACE":
+                    pass
+            except OSError as oErr:
+                logging.error("OSError: {0}".format(oErr))
+
+
+# class to get messages from the centralized server
+class Listener(threading.Thread):
+    def __init__(self, centralized_server_socket):
+        super().__init__()
+        self.tcpClientSocket = centralized_server_socket
+        self.busy = True
+
+    def run(self):
+        while self.busy:
+            msg = self.tcpClientSocket.recv(1024)
+            print(msg.decode())
+
+    def turnoff(self, is_busy):
+        self.busy = is_busy
 
 
 # peer is started

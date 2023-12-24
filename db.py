@@ -28,7 +28,7 @@ class DB:
         #     return False
 
     # registers a user
-    def register(self, username, password,salt):
+    def register(self, username, password, salt):
         account = {
             "username": username,
             "password": password,
@@ -36,12 +36,11 @@ class DB:
         }
         self.db.accounts.insert_one(account)
 
-
     # retrieves the password for a given username
     def get_password(self, username):
         return self.db.accounts.find_one({"username": username})["password"]
 
-    def get_salt(self,username):
+    def get_salt(self, username):
         return self.db.accounts.find_one({"username": username})["salt"]
 
     # checks if an account with the username online
@@ -52,21 +51,48 @@ class DB:
             return False
 
     # logs in the user
-    def user_login(self, username, ip, port):
+    def user_login(self, username, ip, port, udp_port):
         online_peer = {
             "username": username,
             "ip": ip,
-            "port": port
+            "port": port,
+            "udpPort": udp_port
         }
-        #self.db.online_peers.insert(online_peer)
+        # self.db.online_peers.insert(online_peer)
         self.db.online_peers.insert_one(online_peer)
 
     # logs out the user
     def user_logout(self, username):
-        #self.db.online_peers.remove({"username": username})
+        # self.db.online_peers.remove({"username": username})
         self.db.online_peers.delete_one({"username": username})
 
     # retrieves the ip address and the port number of the username
     def get_peer_ip_port(self, username):
         res = self.db.online_peers.find_one({"username": username})
         return (res["ip"], res["port"])
+
+    def get_peer_ip_udp_port(self, username):
+        res = self.db.online_peers.find_one({"username": username})
+        return (res["ip"], res["udpPort"])
+
+    # checks if the group exists
+    def is_group_exists(self, group_name):
+        if self.db.groups.count_documents({'group_name': group_name}) > 0:
+            return True
+        else:
+            return False
+
+    def add_group(self, group_name, host):
+        group = {
+            "group_name": group_name,
+            "host": host,
+            "members": host
+        }
+        self.db.groups.insert_one(group)
+
+    def get_last_peer_in_group(self, group_name):
+        group_data = self.db.groups.find_one({'group_name': group_name})
+        if group_data and 'members' in group_data:
+            list_of_members = group_data['members'].split(',')
+            return list_of_members[-1] if list_of_members else None
+        return None

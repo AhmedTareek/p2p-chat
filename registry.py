@@ -191,6 +191,7 @@ class ClientThread(threading.Thread):
                             peer_addr = db.get_peer_ip_udp_port(peer_username)
                             res = "SUCCESS " + peer_addr[0] + " " + peer_addr[1]
                             self.tcpClientSocket.send(res.encode())
+                            db.add_peer_in_group(message[1], self.username)
                         elif stat == 0:
                             res = "JOIN-REJECTED"
                             self.tcpClientSocket.send(res.encode())

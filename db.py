@@ -96,3 +96,13 @@ class DB:
             list_of_members = group_data['members'].split(',')
             return list_of_members[-1] if list_of_members else None
         return None
+
+    def add_peer_in_group(self, group_name,user_name):
+        group_data = self.db.groups.find_one({'group_name': group_name})
+        if group_data and 'members' in group_data:
+            list_of_members = group_data['members'].split(',')
+            list_of_members.append(user_name)
+            self.db.groups.update_one(
+                {'group_name': group_name},
+                {'$set': {'members': ','.join(list_of_members)}}
+            )

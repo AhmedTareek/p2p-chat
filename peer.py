@@ -415,10 +415,11 @@ class peerMain:
                 break
             # if peer wants to join a group
             elif choice == "6" and self.isOnline:
-                ret = self.join_group(input("Enter the group you want to join\n"))
+                group_name = input("Enter the group you want to join\n")
+                ret = self.join_group(group_name)
                 if ret == 1:
                     group_chat = GroupChat(self.udpClientSocket, self.left_group_member, self.right_group_member,
-                                           self.tcpClientSocket)
+                                           self.tcpClientSocket, group_name)
                     group_chat.start()
                     group_chat.join()
                 elif ret == 0:
@@ -427,11 +428,12 @@ class peerMain:
                     print("Your Join request to group is rejected")
             # if peer wants to create a group
             elif choice == "7" and self.isOnline:
-                ret = self.create_group(input("Enter the group name you want to create\n"))
+                group_name = input("Enter the group name you want to create\n")
+                ret = self.create_group(group_name)
                 if ret == 1:
                     print("Group Created Successfully")
                     group_chat = GroupChat(self.udpClientSocket, self.left_group_member, self.right_group_member,
-                                           self.tcpClientSocket, True)
+                                           self.tcpClientSocket, group_name, True)
                     group_chat.start()
                     group_chat.join()
                 elif ret == 0:
@@ -579,13 +581,14 @@ class peerMain:
 
 
 class GroupChat(threading.Thread):
-    def __init__(self, udp_socket, left, right, centralized_server_socket, is_host=False):
+    def __init__(self, udp_socket, left, right, centralized_server_socket, group_name, is_host=False):
         super().__init__()
         self.udpClientSocket = udp_socket
         self.left = left
         self.right = right
         self.tcpClientSocket = centralized_server_socket
         self.is_host = is_host
+        self.groupName = group_name
 
     def run(self):
         monitor_thread = threading.Thread(target=self.monitor)
@@ -596,6 +599,15 @@ class GroupChat(threading.Thread):
             print(self.left)
             print(self.right)
             msg = input("[gp:hard-code]")
+            if msg == ":q":
+                # incomplete needs to be completed
+                messageToServer = "LEAVE-GROUP " + self.groupName
+                self.tcpClientSocket.send(messageToServer.encode())
+                responseFromServer = self.tcpClientSocket.recv(1024).decode().split()
+                if responseFromServer[0] == "LEAVE-GRANTED":
+                    self.left[0] = self.right[0] = self.left[1] = self.right[1] = None
+                    break
+            # ------------------
             if self.left[0] is not None:
                 self.udpClientSocket.sendto(msg.encode(), (self.left[0], self.left[1]))
                 print(Fore.CYAN + "send to the left")

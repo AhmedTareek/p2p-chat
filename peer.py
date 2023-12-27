@@ -321,7 +321,7 @@ class peerMain:
         while choice != "3":
             # menu selection prompt
             choice = input("Choose: \nCreate account: 1\nLogin: 2\nExit: 3\nSearch: 4\nStart a chat: 5\nJoin Chat "
-                           "Room: 6\nCreate Chat room: 7\n")
+                           "Room: 6\nCreate Chat room: 7\nList of all online peers: 8\n")
             # if choice is 1, creates an account with the username
             # and password entered by the user
             if choice == "1":
@@ -391,6 +391,7 @@ class peerMain:
                     self.peerClient.join()
                     l.turnoff(False)
                     l.join()
+
             # if this is the receiver side then it will get the prompt to accept an incoming request during the main
             # loop that's why response is evaluated in main process not the server thread even though the prompt is
             # printed by server if the response is ok then a client is created for this peer with the OK message and
@@ -438,6 +439,14 @@ class peerMain:
                     group_chat.join()
                 elif ret == 0:
                     print("Group already exists")
+
+            # if peer wants to display a list of online peers
+            elif choice == "8" and self.isOnline:
+                ret = self.get_online_peers()
+                if ret == 0:
+                    print("All peers are offline")
+                elif ret == 1:
+                    print("List of online peers")
 
         # if main process is not ended with cancel selection
         # socket of the client is closed
@@ -563,6 +572,15 @@ class peerMain:
         if response[0] == "CREATED":
             return 1
         elif response[0] == "GROUP-EXISTS":
+            return 0
+
+    def get_online_peers(self):
+        message = "GET-ONLINE-PEERS"
+        self.tcpClientSocket.send(message.encode())
+        response = self.tcpClientSocket.recv(1024).decode().split()
+        if response[0] == "SUCCESS":
+            return 1
+        elif response[0] == "NO-ONLINE-PEERS":
             return 0
 
     def find_available_port(self):

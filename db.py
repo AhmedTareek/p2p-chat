@@ -50,6 +50,10 @@ class DB:
         else:
             return False
 
+    # get a list of all online peers
+    def get_online_peers(self):
+        return self.db.online_peers.count_documents()["username"]
+
     # logs in the user
     def user_login(self, username, ip, port, udp_port):
         online_peer = {

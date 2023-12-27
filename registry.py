@@ -206,7 +206,15 @@ class ClientThread(threading.Thread):
                         res = "CREATED"
                         self.tcpClientSocket.send(res.encode())
 
-
+                # get online peers #
+                elif message[0] == "GET-ONLINE-PEERS":
+                    online_peers = db.get_online_peers()
+                    if len(online_peers) == 0:
+                        response = "NO-ONLINE-PEERS"
+                        self.tcpClientSocket.send(response.encode())
+                    else:
+                        response = "SUCCESS"
+                        self.tcpClientSocket.send(response.encode())
 
 
             except OSError as oErr:

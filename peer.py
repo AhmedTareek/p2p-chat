@@ -1,4 +1,3 @@
-
 import re
 from socket import *
 import threading
@@ -6,6 +5,7 @@ import time
 import select
 import logging
 import bcrypt
+from datetime import datetime
 
 from colorama import Fore, Back, Style, init
 
@@ -311,8 +311,10 @@ class peerMain:
         # timer initialization
         self.timer = None
         # group linked list left and right
-        self.left_group_member = [None, None]
+        # self.left_group_member = [None, None]
         self.right_group_member = [None, None]
+        # user name of the peer if logged in (it will be needed in the chat room)
+        self.userName = None
 
         choice = "0"
         # log file initialization
@@ -342,6 +344,7 @@ class peerMain:
                 status = self.login(username, password, peerServerPort)
                 # is user logs in successfully, peer variables are set
                 if status == 1:
+                    self.userName = username
                     self.isOnline = True
                     self.loginCredentials = (username, password)
                     self.peerServerPort = peerServerPort
@@ -419,8 +422,8 @@ class peerMain:
                 group_name = input("Enter the group you want to join\n")
                 ret = self.join_group(group_name)
                 if ret == 1:
-                    group_chat = GroupChat(self.udpClientSocket, self.left_group_member, self.right_group_member,
-                                           self.tcpClientSocket, group_name)
+                    group_chat = GroupChat(self.udpClientSocket, self.right_group_member,
+                                           self.tcpClientSocket, group_name, self.userName)
                     group_chat.start()
                     group_chat.join()
                 elif ret == 0:
@@ -433,8 +436,8 @@ class peerMain:
                 ret = self.create_group(group_name)
                 if ret == 1:
                     print("Group Created Successfully")
-                    group_chat = GroupChat(self.udpClientSocket, self.left_group_member, self.right_group_member,
-                                           self.tcpClientSocket, group_name, True)
+                    group_chat = GroupChat(self.udpClientSocket, self.right_group_member,
+                                           self.tcpClientSocket, group_name, self.userName, True)
                     group_chat.start()
                     group_chat.join()
                 elif ret == 0:
@@ -558,7 +561,6 @@ class peerMain:
             self.right_group_member[0] = response[1]
             self.right_group_member[1] = int(response[2])
             print("my right", self.right_group_member)
-            print("my left", self.left_group_member)
             return 1
         elif response[0] == "JOIN-REJECTED":
             return -1
@@ -599,48 +601,70 @@ class peerMain:
 
 
 class GroupChat(threading.Thread):
-    def __init__(self, udp_socket, left, right, centralized_server_socket, group_name, is_host=False):
+    def __init__(self, udp_socket, right, centralized_server_socket, group_name, user_name, is_host=False):
         super().__init__()
         self.udpClientSocket = udp_socket
-        self.left = left
         self.right = right
         self.tcpClientSocket = centralized_server_socket
         self.is_host = is_host
         self.groupName = group_name
+        self.userName = user_name
+        self.sentMessages = {}
+        self.receivedMessages = []
 
     def run(self):
         monitor_thread = threading.Thread(target=self.monitor)
         read_thread = threading.Thread(target=self.read)
         monitor_thread.start()
         read_thread.start()
-        while self.left[0] is not None or self.right[0] is not None or self.is_host:
-            print(self.left)
+        while self.right[0] is not None or self.is_host:
             print(self.right)
-            msg = input("[gp:hard-code]")
+            msg = input("[" + self.groupName + "]: ")
+
             if msg == ":q":
                 # incomplete needs to be completed
                 messageToServer = "LEAVE-GROUP " + self.groupName
                 self.tcpClientSocket.send(messageToServer.encode())
                 responseFromServer = self.tcpClientSocket.recv(1024).decode().split()
                 if responseFromServer[0] == "LEAVE-GRANTED":
-                    self.left[0] = self.right[0] = self.left[1] = self.right[1] = None
+                    self.right[0] = self.right[1] = None
                     break
             # ------------------
-            if self.left[0] is not None:
-                self.udpClientSocket.sendto(msg.encode(), (self.left[0], self.left[1]))
-                print(Fore.CYAN + "send to the left")
+            current_utc_time = datetime.utcnow()
+            msg = str(current_utc_time) + "[" + self.userName + "]" + " " + msg
             if self.right[0] is not None:
                 self.udpClientSocket.sendto(msg.encode(), (self.right[0], self.right[1]))
                 print(Fore.CYAN + "send to the right")
+            self.sentMessages[msg] = 0
+            timer = threading.Timer(5.0, self.check_message, args=(msg,))
+            timer.start()
 
     def read(self):
-        while self.left[0] is not None or self.right[0] is not None or self.is_host:
+        while self.right[0] is not None or self.is_host:
             message, clientAddress = self.udpClientSocket.recvfrom(2048)
-            if clientAddress[0] == self.left[0] and clientAddress[1] == self.left[1] and self.right[0] is not None:
-                self.udpClientSocket.sendto(message, (self.right[0], self.right[1]))
-            elif clientAddress[0] == self.right[0] and clientAddress[1] == self.right[1] and self.left[0] is not None:
-                self.udpClientSocket.sendto(message, (self.left[0], self.left[1]))
-            print(Fore.YELLOW + message.decode())
+            decoded_message = message.decode()
+            print(Fore.LIGHTYELLOW_EX + "for debug" + decoded_message)
+            # if it was a message that I sent
+            if decoded_message in self.sentMessages.keys():
+                print(Fore.LIGHTYELLOW_EX + "message i sent")
+                # mark that the message you sent was successfully sent to all the peers
+                self.sentMessages[decoded_message] = 1
+                continue
+            # duplicate message that I received
+            elif decoded_message in self.receivedMessages:
+                print(Fore.LIGHTYELLOW_EX + "message i recieved")
+                if self.right[0] is not None:
+                    self.udpClientSocket.sendto(message, (self.right[0], self.right[1]))
+            # new message that I didn't receive
+            else:
+                print(Fore.LIGHTYELLOW_EX + "new message")
+                if self.right[0] is not None:
+                    self.udpClientSocket.sendto(message, (self.right[0], self.right[1]))
+                self.receivedMessages.append(decoded_message)
+                if len(self.receivedMessages) >= 101:
+                    self.receivedMessages.pop(0)
+                index = decoded_message.find('[')
+                print(Fore.YELLOW + decoded_message[index:])
 
     def monitor(self):
         while True:
@@ -648,9 +672,9 @@ class GroupChat(threading.Thread):
                 print("waiting for msg")
                 msg = self.tcpClientSocket.recv(1024).decode().split()
                 print(msg)
-                if msg[0] == "CONNECT-LEFT":
-                    self.left[0] = msg[1]
-                    self.left[1] = int(msg[2])
+                if msg[0] == "CONNECT-RIGHT":
+                    self.right[0] = msg[1]
+                    self.right[1] = int(msg[2])
 
                     res = "CONNECTED-SUCCESS"
                     # self.tcpClientSocket.send(res.encode())
@@ -658,6 +682,13 @@ class GroupChat(threading.Thread):
                     pass
             except OSError as oErr:
                 logging.error("OSError: {0}".format(oErr))
+
+    def check_message(self, msg):
+        # Replace this with your condition checking logic
+        if self.sentMessages[msg] == 0:
+            print(Fore.RED + "Your message " + msg + "Failed to send")
+
+        self.sentMessages.pop(msg)
 
 
 # class to get messages from the centralized server

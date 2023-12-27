@@ -188,7 +188,7 @@ class ClientThread(threading.Thread):
                                 break
                         print("got out of the loop")
                         if stat == 1:
-                            peer_addr = db.get_peer_ip_udp_port(peer_username)
+                            peer_addr = db.get_host_ip_udp_port(message[1])
                             res = "SUCCESS " + peer_addr[0] + " " + peer_addr[1]
                             self.tcpClientSocket.send(res.encode())
                             db.add_peer_in_group(message[1], self.username)
@@ -240,7 +240,7 @@ class ClientThread(threading.Thread):
             time.sleep(1)
             if savedPeer != "":
                 peer_data = db.get_peer_ip_udp_port(savedPeer)
-                msg = "CONNECT-LEFT " + peer_data[0] + " " + peer_data[1]
+                msg = "CONNECT-RIGHT " + peer_data[0] + " " + peer_data[1]
                 # send message to peer to connect the new user
                 self.tcpClientSocket.send(msg.encode())
                 print("sent the message to the peer to connect-left")

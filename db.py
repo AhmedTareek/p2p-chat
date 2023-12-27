@@ -101,7 +101,7 @@ class DB:
             return list_of_members[-1] if list_of_members else None
         return None
 
-    def add_peer_in_group(self, group_name,user_name):
+    def add_peer_in_group(self, group_name, user_name):
         group_data = self.db.groups.find_one({'group_name': group_name})
         if group_data and 'members' in group_data:
             list_of_members = group_data['members'].split(',')
@@ -110,3 +110,12 @@ class DB:
                 {'group_name': group_name},
                 {'$set': {'members': ','.join(list_of_members)}}
             )
+
+    def get_host_ip_udp_port(self, group_name):
+        group_data = self.db.groups.find_one({'group_name': group_name})
+        if group_data and 'members' in group_data:
+            host_name = group_data['host']
+            print("form db " + host_name)
+            ret = self.get_peer_ip_udp_port(host_name)
+            print("from db ",ret)
+            return ret

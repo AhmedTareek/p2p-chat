@@ -6,8 +6,10 @@ import select
 import logging
 import bcrypt
 from datetime import datetime
-
+import db
 from colorama import Fore, Back, Style, init
+
+
 
 # Initialize colorama - needed for Windows systems
 init(autoreset=True)
@@ -287,7 +289,7 @@ class peerMain:
         self.registryName = input("Enter IP address of registry: ")
         # self.registryName = 'localhost'
         # port number of the registry
-        self.registryPort = 15600
+        self.registryPort = 15100
         # tcp socket connection to registry
         self.tcpClientSocket = socket(AF_INET, SOCK_STREAM)
         self.tcpClientSocket.connect((self.registryName, self.registryPort))
@@ -297,7 +299,7 @@ class peerMain:
 
         self.udpPortNum = self.udpClientSocket.getsockname()[1]
         # udp port of the registry
-        self.registryUDPPort = 15500
+        self.registryUDPPort = 15200
         # login info of the peer
         self.loginCredentials = (None, None)
         # online status of the peer
@@ -424,6 +426,20 @@ class peerMain:
                 if ret == 1:
                     group_chat = GroupChat(self.udpClientSocket, self.right_group_member,
                                            self.tcpClientSocket, group_name, self.userName)
+                    # group_chat_info = {
+                    #         "udpClientSocket": group_chat.udpClientSocket,
+                    #         "right_group_member": "",
+                    #         "tcpClientSocket": group_chat.tcpClientSocket,
+                    #         "group_name": group_name,
+                    #         "userName": group_chat.userName,
+                    #         # Add other attributes as needed
+                    # }
+                    # GroupChatlist[self.userName] = [group_chat_info]
+                    # #GroupChatlist[self.userName].append(group_chat_info)
+                    # print(GroupChatlist)
+                    # print(GroupChatlist["karim"])
+                    # print(GroupChatlist["matwa"])
+                    # print(GroupChatlist["matwa"]["right_group_member"])
                     group_chat.start()
                     group_chat.join()
                 elif ret == 0:
@@ -438,6 +454,19 @@ class peerMain:
                     print("Group Created Successfully")
                     group_chat = GroupChat(self.udpClientSocket, self.right_group_member,
                                            self.tcpClientSocket, group_name, self.userName, True)
+                    # group_chat_info = {
+                    #         "udpClientSocket": group_chat.udpClientSocket,
+                    #         "right_group_member": "",
+                    #         "tcpClientSocket": group_chat.tcpClientSocket,
+                    #         "group_name": group_name,
+                    #         "userName": group_chat.userName
+                    #         # Add other attributes as needed
+                    # }
+                    # GroupChatlist[self.userName] = [group_chat_info]
+                    # #GroupChatlist[self.userName].append(group_chat_info)
+                    # print(GroupChatlist)
+                    # print(GroupChatlist["karim"])
+
                     group_chat.start()
                     group_chat.join()
                 elif ret == 0:
@@ -623,6 +652,14 @@ class GroupChat(threading.Thread):
 
             if msg == ":q":
                 # incomplete needs to be completed
+                #msg = "CONNECT-RIGHT " + peer_data[0] + " " + peer_data[1]
+
+
+                   #compelete
+
+
+
+
                 messageToServer = "LEAVE-GROUP " + self.groupName
                 self.tcpClientSocket.send(messageToServer.encode())
                 responseFromServer = self.tcpClientSocket.recv(1024).decode().split()
@@ -678,6 +715,10 @@ class GroupChat(threading.Thread):
 
                     res = "CONNECTED-SUCCESS"
                     # self.tcpClientSocket.send(res.encode())
+                #elif msg[0] == "DISCONNECT":
+
+
+
                 elif msg[0] == "REPLACE":
                     pass
             except OSError as oErr:
@@ -708,4 +749,6 @@ class Listener(threading.Thread):
 
 
 # peer is started
+#to change peer pointers on leave
+GroupChatlist = {}
 main = peerMain()

@@ -119,3 +119,15 @@ class DB:
             ret = self.get_peer_ip_udp_port(host_name)
             print("from db ",ret)
             return ret
+    def remove_last_from_group(self, group_name):
+        group_data = self.db.groups.find_one({'group_name': group_name})
+        if group_data and 'members' in group_data:
+            list_of_members = group_data['members'].split(',')
+            if list_of_members:
+                list_of_members.pop()  # Remove the last member
+                self.db.groups.update_one(
+                    {'group_name': group_name},
+                    {'$set': {'members': ','.join(list_of_members)}}
+                )
+
+

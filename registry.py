@@ -216,6 +216,18 @@ class ClientThread(threading.Thread):
                         response = "SUCCESS"
                         self.tcpClientSocket.send(response.encode())
 
+                elif message[0] == "LEAVE-GROUP":
+                    if(db.get_last_peer_in_group(message[1]) == self.username):
+                        db.remove_last_from_group(message[1])
+                        last = db.get_last_peer_in_group(message[1])
+                        host = db.get_host_ip_udp_port(message[1])
+                        leavingPeers[last] = host
+                        response = "LEAVE-GRANTED"
+                        self.tcpClientSocket.send(response.encode())
+
+                    #else:
+                        #complete
+
 
             except OSError as oErr:
                 logging.error("OSError: {0}".format(oErr))
@@ -246,6 +258,9 @@ class ClientThread(threading.Thread):
                 print("sent the message to the peer to connect-left")
                 # res = self.tcpClientSocket.recv(1024).decode().split()
                 res = "CONNECTED-SUCCESS"
+                res2 = "SUCCESS " + peer_data[0] + " " + peer_data[1]
+                self.tcpClientSocket.send(res.encode())
+                self.tcpClientSocket.send(res2.encode())
                 print("recived response", res)
                 # wait for confirmation then add the user to the connected or failed users
                 # self.lock.acquire()
@@ -255,6 +270,37 @@ class ClientThread(threading.Thread):
                     peerStatus[savedPeer] = 0
                 # self.lock.release()
                 print("peer status is", peerStatus[savedPeer])
+    def check_leaving_peers(self):
+        while True:
+            if self.username is None:
+                name = "None"
+            else:
+                name = self.username
+            savedPeer = ""
+            # self.lock.acquire()
+            if self.username in leavingPeers:
+                savedPeer = leavingPeers[self.username]
+                del leavingPeers[self.username]
+            # self.lock.release()
+            time.sleep(1)
+            if savedPeer != "":
+                peer_data = db.get_peer_ip_udp_port(savedPeer)
+                msg = "CONNECT-RIGHT " + peer_data[0] + " " + peer_data[1]
+                #msg = "DISCONNECT " + peer_data[0] + " " + peer_data[1]
+                # send message to peer to connect the new user
+                self.tcpClientSocket.send(msg.encode())
+                print("sent the message to the peer to connect-left")
+                # res = self.tcpClientSocket.recv(1024).decode().split()
+                res = "DISCONNECTED-SUCCESS"
+                print("recived response", res)
+                # wait for confirmation then add the user to the connected or failed users
+                # self.lock.acquire()
+                if res == "DISCONNECTED-SUCCESS":
+                    leavingPeers[savedPeer] = 1
+                elif res == "DISCONNECTED-FAILED":
+                    leavingPeers[savedPeer] = 0
+                # self.lock.release()
+                print("peer status is", leavingPeers[savedPeer])
 
 
 # a new class to allow sending messages to user when he is chatting
@@ -306,8 +352,8 @@ class UDPServer(threading.Thread):
 
 # tcp and udp server port initializations
 print("Registy started...")
-port = 15600
-portUDP = 15500
+port = 15100
+portUDP =15200
 
 # db initialization
 db = db.DB()
@@ -337,6 +383,8 @@ tcpThreads = {}  # it's a shared resource within all threads --> modify it using
 pendingPeers = {}
 # list of Peerstatus
 peerStatus = {}
+#peers that will be disconnected
+leavingPeers = {}
 
 # tcp and udp socket initializations
 tcpSocket = socket(AF_INET, SOCK_STREAM)

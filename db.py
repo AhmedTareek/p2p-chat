@@ -131,8 +131,9 @@ class DB:
             host_name = group_data['host']
             print("form db " + host_name)
             ret = self.get_peer_ip_udp_port(host_name)
-            print("from db ",ret)
+            print("from db ", ret)
             return ret
+
     def remove_last_from_group(self, group_name):
         group_data = self.db.groups.find_one({'group_name': group_name})
         if group_data and 'members' in group_data:
@@ -143,3 +144,37 @@ class DB:
                     {'group_name': group_name},
                     {'$set': {'members': ','.join(list_of_members)}}
                 )
+
+    def get_peer_before_in_group(self, group_name, peer_name):
+        group_data = self.db.groups.find_one({'group_name': group_name})
+
+        if group_data and 'members' in group_data:
+            list_of_members = group_data['members'].split(',')
+            if peer_name in list_of_members:
+                index = list_of_members.index(peer_name)
+                if index > 0:
+                    return list_of_members[index - 1]
+        return None
+
+    def get_peer_after_in_group(self, group_name, peer_name):
+        group_data = self.db.groups.find_one({'group_name': group_name})
+
+        if group_data and 'members' in group_data:
+            list_of_members = group_data['members'].split(',')
+            if peer_name in list_of_members:
+                index = list_of_members.index(peer_name)
+                if index + 1 < len(list_of_members):
+                    return list_of_members[index + 1]
+        return None
+
+
+def remove_peer_from_group(self, group_name, user_to_remove):
+    group_data = self.db.groups.find_one({'group_name': group_name})
+    if group_data and 'members' in group_data:
+        list_of_members = group_data['members'].split(',')
+        if user_to_remove in list_of_members:
+            list_of_members.remove(user_to_remove)  # Remove the specified user
+            self.db.groups.update_one(
+                {'group_name': group_name},
+                {'$set': {'members': ','.join(list_of_members)}}
+            )

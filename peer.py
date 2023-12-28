@@ -9,8 +9,6 @@ from datetime import datetime
 import db
 from colorama import Fore, Back, Style, init
 
-
-
 # Initialize colorama - needed for Windows systems
 init(autoreset=True)
 
@@ -653,21 +651,9 @@ class GroupChat(threading.Thread):
             msg = input("[" + self.groupName + "]: ")
 
             if msg == ":q":
-                # incomplete needs to be completed
-                #msg = "CONNECT-RIGHT " + peer_data[0] + " " + peer_data[1]
-
-
-                   #compelete
-
-
-
-
                 messageToServer = "LEAVE-GROUP " + self.groupName
                 self.tcpClientSocket.send(messageToServer.encode())
-                responseFromServer = self.tcpClientSocket.recv(1024).decode().split()
-                if responseFromServer[0] == "LEAVE-GRANTED":
-                    self.right[0] = self.right[1] = None
-                    break
+                break
             # ------------------
             current_utc_time = datetime.utcnow()
             msg = str(current_utc_time) + "[" + self.userName + "]" + " " + msg
@@ -717,12 +703,16 @@ class GroupChat(threading.Thread):
 
                     res = "CONNECTED-SUCCESS"
                     # self.tcpClientSocket.send(res.encode())
-                #elif msg[0] == "DISCONNECT":
-
-
+                # elif msg[0] == "DISCONNECT":
 
                 elif msg[0] == "REPLACE":
                     pass
+                elif msg[0] == "LEAVE-GRANTED":
+                    self.right[0] = self.right[1] = None
+                    print(Fore.BLUE + "You left the group")
+                    break
+
+
             except OSError as oErr:
                 logging.error("OSError: {0}".format(oErr))
 
@@ -751,6 +741,6 @@ class Listener(threading.Thread):
 
 
 # peer is started
-#to change peer pointers on leave
+# to change peer pointers on leave
 GroupChatlist = {}
 main = peerMain()

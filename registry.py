@@ -213,7 +213,7 @@ class ClientThread(threading.Thread):
                         response = "NO-ONLINE-PEERS"
                         self.tcpClientSocket.send(response.encode())
                     else:
-                        response = "SUCCESS"
+                        response = online_peers
                         self.tcpClientSocket.send(response.encode())
 
                 elif message[0] == "LEAVE-GROUP":

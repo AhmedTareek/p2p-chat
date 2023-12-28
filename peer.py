@@ -473,7 +473,7 @@ class peerMain:
                     print("Group already exists")
 
             # if peer wants to display a list of online peers
-            elif choice == "8" and self.isOnline:
+            elif choice == "8":
                 ret = self.get_online_peers()
                 if ret == 0:
                     print("All peers are offline")
@@ -608,11 +608,13 @@ class peerMain:
     def get_online_peers(self):
         message = "GET-ONLINE-PEERS"
         self.tcpClientSocket.send(message.encode())
+        # the problem is here in the response
         response = self.tcpClientSocket.recv(1024).decode().split()
-        if response[0] == "SUCCESS":
-            return 1
-        elif response[0] == "NO-ONLINE-PEERS":
+        if response[0] == "NO-ONLINE-PEERS":
             return 0
+        else:
+            print(response)
+            return 1
 
     def find_available_port(self):
         available_ports = []

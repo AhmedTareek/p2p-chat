@@ -52,7 +52,21 @@ class DB:
 
     # get a list of all online peers
     def get_online_peers(self):
-        return self.db.online_peers.count_documents()["username"]
+        #peers = self.db.online_peers.find({'_id': 0, 'username': 1, 'ip': 0, 'port': 0, 'udpPort': 0})
+        #peers_list = [doc['username'] for doc in peers]
+        #return peers_list
+        pipeline = [{
+        '$project': {
+            'username': 1,
+            'ip': 0,
+            'port': 0,
+            'udpPort': 0,
+            '_id': 0
+            }
+        }]
+        cursor = self.db.online_peers.aggregate(pipeline)
+        documents = list(cursor)
+        return documents
 
     # logs in the user
     def user_login(self, username, ip, port, udp_port):
@@ -129,5 +143,3 @@ class DB:
                     {'group_name': group_name},
                     {'$set': {'members': ','.join(list_of_members)}}
                 )
-
-

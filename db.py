@@ -67,6 +67,14 @@ class DB:
         cursor = self.db.online_peers.aggregate(pipeline)
         documents = list(cursor)
         return documents
+    def get_online_peer_names(self):
+        # Assuming self.db.online_peers is your collection
+        online_peers = self.db.online_peers.find()
+
+        # Extract names from each document in the collection
+        names = [peer['username'] for peer in online_peers]
+
+        return names
 
     # logs in the user
     def user_login(self, username, ip, port, udp_port):
@@ -145,6 +153,9 @@ class DB:
                     {'$set': {'members': ','.join(list_of_members)}}
                 )
 
+    def remove_group(self, group_name):
+        self.db.groups.delete_one({"group_name": group_name})
+        return
     def get_peer_before_in_group(self, group_name, peer_name):
         group_data = self.db.groups.find_one({'group_name': group_name})
 
@@ -168,13 +179,26 @@ class DB:
         return None
 
 
-def remove_peer_from_group(self, group_name, user_to_remove):
-    group_data = self.db.groups.find_one({'group_name': group_name})
-    if group_data and 'members' in group_data:
-        list_of_members = group_data['members'].split(',')
-        if user_to_remove in list_of_members:
-            list_of_members.remove(user_to_remove)  # Remove the specified user
-            self.db.groups.update_one(
+    def remove_peer_from_group(self, group_name, user_to_remove):
+        group_data = self.db.groups.find_one({'group_name': group_name})
+        if group_data and 'members' in group_data:
+            list_of_members = group_data['members'].split(',')
+            if user_to_remove in list_of_members:
+                list_of_members.remove(user_to_remove)  # Remove the specified user
+                self.db.groups.update_one(
+                    {'group_name': group_name},
+                    {'$set': {'members': ','.join(list_of_members)}}
+                )
+
+    def count_members(self,group_name):
+        group_data = self.db.groups.find_one({'group_name': group_name})
+        if group_data and 'members' in group_data:
+            list_of_members = group_data['members'].split(',')
+            return len(list_of_members)
+
+    def update_host(self,group_name,new_host):
+        self.db.groups.update_one(
                 {'group_name': group_name},
-                {'$set': {'members': ','.join(list_of_members)}}
+                {'$set': {'host': new_host}}
             )
+        return

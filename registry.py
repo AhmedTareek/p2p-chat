@@ -210,17 +210,37 @@ class ClientThread(threading.Thread):
 
                 # get online peers #
                 elif message[0] == "GET-ONLINE-PEERS":
-                    online_peers = db.get_online_peers()
+                    online_peers = db.get_online_peer_names()
+                    print(online_peers)
                     if len(online_peers) == 0:
                         response = "NO-ONLINE-PEERS"
                         self.tcpClientSocket.send(response.encode())
                     else:
-                        response = online_peers
-                        self.tcpClientSocket.send(response.encode())
+                        strn = '\n'.join(online_peers)
+                        self.tcpClientSocket.send(strn.encode())
 
                 elif message[0] == "LEAVE-GROUP":
+                    # if the peer leaving is the host
+                    if db.get_peer_ip_udp_port(self.username) == db.get_host_ip_udp_port(message[1]):
+                        # you will have to make a new one a host or if he is the only one left delete the group
+                       print(db.count_members(message[1]))
+                       if(db.count_members(message[1]) == 1):
+                            db.remove_group(message[1])
+                            response = "LEAVE-GRANTED"
+                            self.tcpClientSocket.send(response.encode())
+
+                       else:
+                           after = db.get_peer_after_in_group(message[1], self.username)
+                           after_addr = db.get_peer_ip_udp_port(after)
+                           last = db.get_last_peer_in_group(message[1])
+                           db.remove_peer_from_group(message[1], self.username)
+                           db.update_host(message[1],after)
+                           updateRightPeer[last] = after_addr
+                           updateRightPeer[after] = ["HOST"]
+                           response = "LEAVE-GRANTED"
+                           self.tcpClientSocket.send(response.encode())
                     # if the peer is the last one in the group (connected to the host)
-                    if db.get_last_peer_in_group(message[1]) == self.username:
+                    elif db.get_last_peer_in_group(message[1]) == self.username:
                         # remove this peer from the group list
                         db.remove_last_from_group(message[1])
                         # get the new last peer in the group
@@ -235,10 +255,8 @@ class ClientThread(threading.Thread):
                             time.sleep(1)
                         response = "LEAVE-GRANTED"
                         self.tcpClientSocket.send(response.encode())
-                    # if the peer leaving is the host
-                    elif db.get_peer_ip_udp_port(self.username) == db.get_host_ip_udp_port(message[1]):
-                        # you will have to make a new one a host or if he is the only one left delete the group
-                        pass
+
+
                     # normal peer in the group
                     else:
                         # get the peer after the current peer
@@ -256,10 +274,6 @@ class ClientThread(threading.Thread):
                         db.remove_peer_from_group(message[1],self.username)
                         response = "LEAVE-GRANTED"
                         self.tcpClientSocket.send(response.encode())
-
-
-                    # else:
-                    # complete
 
 
             except OSError as oErr:
@@ -291,9 +305,6 @@ class ClientThread(threading.Thread):
                 print("sent the message to the peer to connect-left")
 
                 res = "CONNECTED-SUCCESS"
-                res2 = "SUCCESS " + peer_data[0] + " " + peer_data[1]
-                self.tcpClientSocket.send(res.encode())
-                self.tcpClientSocket.send(res2.encode())
                 print("recived response", res)
                 if res == "CONNECTED-SUCCESS":
                     peerStatus[savedPeer] = 1
@@ -305,18 +316,24 @@ class ClientThread(threading.Thread):
     def check_leaving_peers(self):
         while True:
             address = ""
+            peer_data=""
             # self.lock.acquire()
             if self.username in updateRightPeer.keys():
                 address = updateRightPeer[self.username]
                 del updateRightPeer[self.username]
             # self.lock.release()
             time.sleep(1)
+
             if address != "":
-                msg = "CONNECT-RIGHT " + address[0] + " " + address[1]
-                self.tcpClientSocket.send(msg.encode())
-                print("sent the message to the peer to update right connection")
-                res = "CONNECTED-SUCCESS"
-                print("recived response", res)
+                if(address[0] == "HOST"):
+                    msg = "MAKE-HOST"
+                    self.tcpClientSocket.send(msg.encode())
+                else:
+                    msg = "CONNECT-RIGHT " + address[0] + " " + address[1]
+                    self.tcpClientSocket.send(msg.encode())
+                    print("sent the message to the peer to update right connection")
+                    res = "CONNECTED-SUCCESS"
+                    print("recived response", res)
 
 
 # a new class to allow sending messages to user when he is chatting
@@ -368,9 +385,9 @@ class UDPServer(threading.Thread):
 
 # tcp and udp server port initializations
 print("Registy started...")
-port = 15100
-portUDP = 15200
-
+port = 15406
+portUDP = 15006
+print(type(portUDP))
 # db initialization
 db = db.DB()
 

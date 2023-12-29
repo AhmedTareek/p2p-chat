@@ -287,7 +287,7 @@ class peerMain:
         self.registryName = input("Enter IP address of registry: ")
         # self.registryName = 'localhost'
         # port number of the registry
-        self.registryPort = 15100
+        self.registryPort = 15406
         # tcp socket connection to registry
         self.tcpClientSocket = socket(AF_INET, SOCK_STREAM)
         self.tcpClientSocket.connect((self.registryName, self.registryPort))
@@ -297,7 +297,7 @@ class peerMain:
 
         self.udpPortNum = self.udpClientSocket.getsockname()[1]
         # udp port of the registry
-        self.registryUDPPort = 15200
+        self.registryUDPPort = 15006
         # login info of the peer
         self.loginCredentials = (None, None)
         # online status of the peer
@@ -473,10 +473,8 @@ class peerMain:
             # if peer wants to display a list of online peers
             elif choice == "8":
                 ret = self.get_online_peers()
-                if ret == 0:
-                    print("All peers are offline")
-                elif ret == 1:
-                    print("List of online peers")
+                for i in ret:
+                    print(Fore.BLUE  + i)
 
         # if main process is not ended with cancel selection
         # socket of the client is closed
@@ -611,8 +609,7 @@ class peerMain:
         if response[0] == "NO-ONLINE-PEERS":
             return 0
         else:
-            print(response)
-            return 1
+            return response
 
     def find_available_port(self):
         available_ports = []
@@ -697,7 +694,9 @@ class GroupChat(threading.Thread):
                 print("waiting for msg")
                 msg = self.tcpClientSocket.recv(1024).decode().split()
                 print(msg)
-                if msg[0] == "CONNECT-RIGHT":
+                if msg[0] == "MAKE-HOST":
+                    self.is_host=True
+                if msg[0] == "CONNECT-RIGHT" and isinstance(msg[2], int):
                     self.right[0] = msg[1]
                     self.right[1] = int(msg[2])
 
@@ -708,6 +707,7 @@ class GroupChat(threading.Thread):
                 elif msg[0] == "REPLACE":
                     pass
                 elif msg[0] == "LEAVE-GRANTED":
+                    self.is_host = False
                     self.right[0] = self.right[1] = None
                     print(Fore.BLUE + "You left the group")
                     break

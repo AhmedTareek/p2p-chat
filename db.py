@@ -52,29 +52,15 @@ class DB:
 
     # get a list of all online peers
     def get_online_peers(self):
-        #peers = self.db.online_peers.find({'_id': 0, 'username': 1, 'ip': 0, 'port': 0, 'udpPort': 0})
-        #peers_list = [doc['username'] for doc in peers]
-        #return peers_list
-        pipeline = [{
-        '$project': {
-            'username': 1,
-            'ip': 0,
-            'port': 0,
-            'udpPort': 0,
-            '_id': 0
-            }
-        }]
-        cursor = self.db.online_peers.aggregate(pipeline)
-        documents = list(cursor)
-        return documents
-    def get_online_peer_names(self):
-        # Assuming self.db.online_peers is your collection
         online_peers = self.db.online_peers.find()
-
-        # Extract names from each document in the collection
         names = [peer['username'] for peer in online_peers]
-
         return names
+
+    # get a list of all groups
+    def get_groups(self):
+        groups = self.db.groups.find()
+        group_names = [group['group_name'] for group in groups]
+        return group_names
 
     # logs in the user
     def user_login(self, username, ip, port, udp_port):

@@ -210,13 +210,21 @@ class ClientThread(threading.Thread):
 
                 # get online peers #
                 elif message[0] == "GET-ONLINE-PEERS":
-                    online_peers = db.get_online_peer_names()
-                    print(online_peers)
+                    online_peers = db.get_online_peers()
                     if len(online_peers) == 0:
                         response = "NO-ONLINE-PEERS"
                         self.tcpClientSocket.send(response.encode())
                     else:
                         strn = '\n'.join(online_peers)
+                        self.tcpClientSocket.send(strn.encode())
+
+                elif message[0] == "GET-GROUPS":
+                    groups = db.get_groups()
+                    if len(groups) == 0:
+                        response = "NO-GROUPS"
+                        self.tcpClientSocket.send(response.encode())
+                    else:
+                        strn = '\n'.join(groups)
                         self.tcpClientSocket.send(strn.encode())
 
                 elif message[0] == "LEAVE-GROUP":

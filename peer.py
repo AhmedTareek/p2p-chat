@@ -313,7 +313,7 @@ class peerMain:
         # group linked list left and right
         # self.left_group_member = [None, None]
         self.right_group_member = [None, None]
-        # user name of the peer if logged in (it will be needed in the chat room)
+        # username of the peer if logged in (it will be needed in the chat room)
         self.userName = None
 
         choice = "0"
@@ -323,7 +323,7 @@ class peerMain:
         while choice != "3":
             # menu selection prompt
             choice = input("Choose: \nCreate account: 1\nLogin: 2\nExit: 3\nSearch: 4\nStart a chat: 5\nJoin Chat "
-                           "Room: 6\nCreate Chat room: 7\nList of all online peers: 8\n")
+                           "Room: 6\nCreate Chat room: 7\nList online peers: 8\nList groups: 9\n")
             # if choice is 1, creates an account with the username
             # and password entered by the user
             if choice == "1":
@@ -476,6 +476,12 @@ class peerMain:
                 for i in ret:
                     print(Fore.BLUE  + i)
 
+            # if peer wants to display a list of groups
+            elif choice == "9":
+                ret = self.get_groups()
+                for i in ret:
+                    print(Fore.BLUE + i)
+
         # if main process is not ended with cancel selection
         # socket of the client is closed
         if choice != "CANCEL":
@@ -604,9 +610,17 @@ class peerMain:
     def get_online_peers(self):
         message = "GET-ONLINE-PEERS"
         self.tcpClientSocket.send(message.encode())
-        # the problem is here in the response
         response = self.tcpClientSocket.recv(1024).decode().split()
         if response[0] == "NO-ONLINE-PEERS":
+            return 0
+        else:
+            return response
+
+    def get_groups(self):
+        message = "GET-GROUPS"
+        self.tcpClientSocket.send(message.encode())
+        response = self.tcpClientSocket.recv(1024).decode().split()
+        if response[0] == "NO-GROUPS":
             return 0
         else:
             return response

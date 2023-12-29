@@ -228,60 +228,7 @@ class ClientThread(threading.Thread):
                         self.tcpClientSocket.send(strn.encode())
 
                 elif message[0] == "LEAVE-GROUP":
-                    # if the peer leaving is the host
-                    if db.get_peer_ip_udp_port(self.username) == db.get_host_ip_udp_port(message[1]):
-                        # you will have to make a new one a host or if he is the only one left delete the group
-                       print(db.count_members(message[1]))
-                       if(db.count_members(message[1]) == 1):
-                            db.remove_group(message[1])
-                            response = "LEAVE-GRANTED"
-                            self.tcpClientSocket.send(response.encode())
-
-                       else:
-                           after = db.get_peer_after_in_group(message[1], self.username)
-                           after_addr = db.get_peer_ip_udp_port(after)
-                           last = db.get_last_peer_in_group(message[1])
-                           db.remove_peer_from_group(message[1], self.username)
-                           db.update_host(message[1],after)
-                           updateRightPeer[last] = after_addr
-                           updateRightPeer[after] = ["HOST"]
-                           response = "LEAVE-GRANTED"
-                           self.tcpClientSocket.send(response.encode())
-                    # if the peer is the last one in the group (connected to the host)
-                    elif db.get_last_peer_in_group(message[1]) == self.username:
-                        # remove this peer from the group list
-                        db.remove_last_from_group(message[1])
-                        # get the new last peer in the group
-                        last = db.get_last_peer_in_group(message[1])
-                        # get the address of the host
-                        host = db.get_host_ip_udp_port(message[1])
-                        # add
-                        updateRightPeer[last] = host
-                        # wait to make sure he left
-                        # -- write the code to wait here
-                        while last in updateRightPeer.keys():
-                            time.sleep(1)
-                        response = "LEAVE-GRANTED"
-                        self.tcpClientSocket.send(response.encode())
-
-
-                    # normal peer in the group
-                    else:
-                        # get the peer after the current peer
-                        after = db.get_peer_after_in_group(message[1], self.username)
-                        # get the address of the after peer
-                        after_add = db.get_peer_ip_udp_port(after)
-                        # get the peer before the current peer
-                        before = db.get_peer_before_in_group(message[1], self.username)
-                        updateRightPeer[before] = after_add
-                        # wait to make sure he left
-                        # -- write the code to wait here
-                        while before in updateRightPeer.keys():
-                            time.sleep(1)
-                        # remove the peer from the group list in the database
-                        db.remove_peer_from_group(message[1],self.username)
-                        response = "LEAVE-GRANTED"
-                        self.tcpClientSocket.send(response.encode())
+                    self.remove_peer_from_group(message[1])
 
 
             except OSError as oErr:
@@ -291,6 +238,70 @@ class ClientThread(threading.Thread):
 
     def resetTimeout(self):
         self.udpServer.resetTimer()
+
+    def remove_peer_from_group(self, group_name, peer_connection_available=True):
+        # if the peer is the last one in the group (connected to the host) | also he is not the host
+        if db.get_last_peer_in_group(group_name) == self.username and db.count_members_in_group(group_name) != 1:
+            # remove this peer from the group list
+            db.remove_last_from_group(group_name)
+            # get the new last peer in the
+
+            last = db.get_last_peer_in_group(group_name)
+            # get the address of the host
+            admin = db.get_host_ip_udp_port(group_name)
+            # add
+            updateRightPeer[last] = admin
+            # wait to make sure he left
+            # -- write the code to wait here
+            while last in updateRightPeer.keys():
+                time.sleep(1)
+            if peer_connection_available:
+                response = "LEAVE-GRANTED"
+                self.tcpClientSocket.send(response.encode())
+        # if the peer leaving is the host
+        elif db.get_peer_ip_udp_port(self.username) == db.get_host_ip_udp_port(group_name):
+            # you will have to make a new one a host or if he is the only one left delete the group
+            # this means the host is leaving
+            if db.count_members_in_group(group_name) == 1:
+                db.delete_group(group_name)
+                if peer_connection_available:
+                    response = "LEAVE-GRANTED"
+                    self.tcpClientSocket.send(response.encode())
+
+            else:
+                # case where we will make new on the host
+                after = db.get_peer_after_in_group(group_name, self.username)
+                pendingPeers[after] = "MAKE-HOST"
+                # update last to point to the new host
+                last = db.get_last_peer_in_group(group_name)
+                updateRightPeer[last] = db.get_peer_ip_udp_port(after)
+                while last in updateRightPeer.keys() and after in pendingPeers.keys():
+                    time.sleep(1)
+                if peer_connection_available:
+                    response = "LEAVE-GRANTED"
+                    self.tcpClientSocket.send(response.encode())
+                db.update_group_host(group_name, after)
+
+        # normal peer in the group
+        else:
+            # get the peer after the current peer
+            after = db.get_peer_after_in_group(group_name, self.username)
+            # get the address of the after peer
+            after_add = db.get_peer_ip_udp_port(after)
+            # get the peer before the current peer
+            before = db.get_peer_before_in_group(group_name, self.username)
+            updateRightPeer[before] = after_add
+            # wait to make sure he left
+            # -- write the code to wait here
+            while before in updateRightPeer.keys():
+                time.sleep(1)
+            # remove the peer from the group list in the database
+            db.remove_peer_from_group(group_name, self.username)
+            if peer_connection_available:
+                response = "LEAVE-GRANTED"
+                self.tcpClientSocket.send(response.encode())
+        # remove the peer from the group list in the database
+        db.remove_peer_from_group(group_name, self.username)
 
     def check_pending_peers(self):
         while True:
@@ -306,6 +317,12 @@ class ClientThread(threading.Thread):
             # self.lock.release()
             time.sleep(1)
             if savedPeer != "":
+                if savedPeer == "MAKE-HOST":
+                    msg = "HOST"
+                    self.tcpClientSocket.send(msg.encode())
+                    print("sending message to make" + self.username + " a host")
+                    continue
+
                 peer_data = db.get_peer_ip_udp_port(savedPeer)
                 msg = "CONNECT-RIGHT " + peer_data[0] + " " + peer_data[1]
                 # send message to peer to connect the new user
@@ -313,6 +330,7 @@ class ClientThread(threading.Thread):
                 print("sent the message to the peer to connect-left")
 
                 res = "CONNECTED-SUCCESS"
+
                 print("recived response", res)
                 if res == "CONNECTED-SUCCESS":
                     peerStatus[savedPeer] = 1
@@ -324,24 +342,18 @@ class ClientThread(threading.Thread):
     def check_leaving_peers(self):
         while True:
             address = ""
-            peer_data=""
             # self.lock.acquire()
             if self.username in updateRightPeer.keys():
                 address = updateRightPeer[self.username]
                 del updateRightPeer[self.username]
             # self.lock.release()
             time.sleep(1)
-
             if address != "":
-                if(address[0] == "HOST"):
-                    msg = "MAKE-HOST"
-                    self.tcpClientSocket.send(msg.encode())
-                else:
-                    msg = "CONNECT-RIGHT " + address[0] + " " + address[1]
-                    self.tcpClientSocket.send(msg.encode())
-                    print("sent the message to the peer to update right connection")
-                    res = "CONNECTED-SUCCESS"
-                    print("recived response", res)
+                msg = "CONNECT-RIGHT " + address[0] + " " + address[1]
+                self.tcpClientSocket.send(msg.encode())
+                print("sent the message to the peer to update right connection")
+                res = "CONNECTED-SUCCESS"
+                print("recived response", res)
 
 
 # a new class to allow sending messages to user when he is chatting
@@ -378,7 +390,13 @@ class UDPServer(threading.Thread):
     # then peer is disconnected
     def waitHelloMessage(self):
         if self.username is not None:
+            # make the user offline
             db.user_logout(self.username)
+            # search if the user in any group and return the group name
+            groups = db.find_user_in_groups(self.username)
+            if len(groups) == 1:  # not sure
+                ClientThread.remove_peer_from_group(tcpThreads[self.username], groups[0], False)
+            # remove the user from any groups he is in
             if self.username in tcpThreads:
                 del tcpThreads[self.username]
         self.tcpClientSocket.close()
@@ -393,9 +411,9 @@ class UDPServer(threading.Thread):
 
 # tcp and udp server port initializations
 print("Registy started...")
-port = 15406
-portUDP = 15006
-print(type(portUDP))
+port = 15100
+portUDP = 15200
+
 # db initialization
 db = db.DB()
 

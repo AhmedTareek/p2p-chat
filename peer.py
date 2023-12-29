@@ -6,7 +6,6 @@ import select
 import logging
 import bcrypt
 from datetime import datetime
-import db
 from colorama import Fore, Back, Style, init
 
 # Initialize colorama - needed for Windows systems
@@ -674,38 +673,48 @@ class GroupChat(threading.Thread):
             self.sentMessages[msg] = 0
             timer = threading.Timer(5.0, self.check_message, args=(msg,))
             timer.start()
+        print("got out of run loop")
 
     def read(self):
         while self.right[0] is not None or self.is_host:
-            message, clientAddress = self.udpClientSocket.recvfrom(2048)
-            decoded_message = message.decode()
-            print(Fore.LIGHTYELLOW_EX + "for debug" + decoded_message)
-            # if it was a message that I sent
-            if decoded_message in self.sentMessages.keys():
-                print(Fore.LIGHTYELLOW_EX + "message i sent")
-                # mark that the message you sent was successfully sent to all the peers
-                self.sentMessages[decoded_message] = 1
-                continue
-            # duplicate message that I received
-            elif decoded_message in self.receivedMessages:
-                print(Fore.LIGHTYELLOW_EX + "message i recieved")
-                if self.right[0] is not None:
-                    self.udpClientSocket.sendto(message, (self.right[0], self.right[1]))
-            # new message that I didn't receive
-            else:
-                print(Fore.LIGHTYELLOW_EX + "new message")
-                if self.right[0] is not None:
-                    self.udpClientSocket.sendto(message, (self.right[0], self.right[1]))
-                self.receivedMessages.append(decoded_message)
-                if len(self.receivedMessages) >= 101:
-                    self.receivedMessages.pop(0)
-                index = decoded_message.find('[')
-                print(Fore.YELLOW + decoded_message[index:])
+            self.udpClientSocket.setblocking(False)
+            try:
+                message, clientAddress = self.udpClientSocket.recvfrom(2048)
+                decoded_message = message.decode()
+                print(Fore.LIGHTYELLOW_EX + "for debug" + decoded_message)
+                # if it was a message that I sent
+                if decoded_message in self.sentMessages.keys():
+                    print(Fore.LIGHTYELLOW_EX + "message i sent")
+                    # mark that the message you sent was successfully sent to all the peers
+                    self.sentMessages[decoded_message] = 1
+                    continue
+                # duplicate message that I received
+                elif decoded_message in self.receivedMessages:
+                    print(Fore.LIGHTYELLOW_EX + "message i recieved")
+                    if self.right[0] is not None:
+                        self.udpClientSocket.sendto(message, (self.right[0], self.right[1]))
+                # new message that I didn't receive
+                else:
+                    print(Fore.LIGHTYELLOW_EX + "new message")
+                    if self.right[0] is not None:
+                        self.udpClientSocket.sendto(message, (self.right[0], self.right[1]))
+                    self.receivedMessages.append(decoded_message)
+                    if len(self.receivedMessages) >= 101:
+                        self.receivedMessages.pop(0)
+                    index = decoded_message.find('[')
+                    print(Fore.YELLOW + decoded_message[index:])
+                # Process the received message
+            except error as e:
+                # print("no data")
+                pass
+
+        print("got out of read loop")
 
     def monitor(self):
         while True:
             try:
                 print("waiting for msg")
+
                 msg = self.tcpClientSocket.recv(1024).decode().split()
                 print(msg)
                 if msg[0] == "MAKE-HOST":
@@ -713,22 +722,20 @@ class GroupChat(threading.Thread):
                 if msg[0] == "CONNECT-RIGHT" and isinstance(msg[2], int):
                     self.right[0] = msg[1]
                     self.right[1] = int(msg[2])
-
-                    res = "CONNECTED-SUCCESS"
-                    # self.tcpClientSocket.send(res.encode())
-                # elif msg[0] == "DISCONNECT":
-
-                elif msg[0] == "REPLACE":
-                    pass
                 elif msg[0] == "LEAVE-GRANTED":
                     self.is_host = False
                     self.right[0] = self.right[1] = None
+                    self.is_host = False
                     print(Fore.BLUE + "You left the group")
                     break
+                elif msg[0] == "HOST":
+                    print("you are the host now")
+                    self.is_host = True
 
 
             except OSError as oErr:
                 logging.error("OSError: {0}".format(oErr))
+        print("got out of monitor loop")
 
     def check_message(self, msg):
         # Replace this with your condition checking logic

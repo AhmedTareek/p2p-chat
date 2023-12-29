@@ -139,9 +139,6 @@ class DB:
                     {'$set': {'members': ','.join(list_of_members)}}
                 )
 
-    def remove_group(self, group_name):
-        self.db.groups.delete_one({"group_name": group_name})
-        return
     def get_peer_before_in_group(self, group_name, peer_name):
         group_data = self.db.groups.find_one({'group_name': group_name})
 
@@ -164,7 +161,6 @@ class DB:
                     return list_of_members[index + 1]
         return None
 
-
     def remove_peer_from_group(self, group_name, user_to_remove):
         group_data = self.db.groups.find_one({'group_name': group_name})
         if group_data and 'members' in group_data:
@@ -176,15 +172,42 @@ class DB:
                     {'$set': {'members': ','.join(list_of_members)}}
                 )
 
-    def count_members(self,group_name):
+    def count_members_in_group(self, group_name):
         group_data = self.db.groups.find_one({'group_name': group_name})
+
         if group_data and 'members' in group_data:
             list_of_members = group_data['members'].split(',')
-            return len(list_of_members)
+            count = len(list_of_members)
+            return count
+        else:
+            return 0  # Return 0 if the group doesn't exist or has no members
 
-    def update_host(self,group_name,new_host):
-        self.db.groups.update_one(
-                {'group_name': group_name},
-                {'$set': {'host': new_host}}
-            )
-        return
+    def delete_group(self, group_name):
+        # Find the group to check if it exists
+        group_data = self.db.groups.find_one({'group_name': group_name})
+
+        if group_data:
+            # If the group exists, delete it from the database
+            self.db.groups.delete_one({'group_name': group_name})
+            print(f"Group '{group_name}' deleted successfully.")
+        else:
+            print(f"Group '{group_name}' not found.")
+
+    def find_user_in_groups(self, user_to_find):
+        groups_with_user = []
+        all_groups = self.db.groups.find({})  # Retrieve all groups
+
+        for group in all_groups:
+            if 'members' in group:
+                list_of_members = group['members'].split(',')
+                if user_to_find in list_of_members:
+                    groups_with_user.append(group['group_name'])
+
+        return groups_with_user
+
+    def update_group_host(self, group_name, new_host):
+        filter_query = {"group_name": group_name}
+        update_query = {"$set": {"host": new_host}}
+
+        self.db.groups.update_one(filter_query, update_query)
+

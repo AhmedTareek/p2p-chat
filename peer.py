@@ -286,7 +286,7 @@ class peerMain:
         self.registryName = input("Enter IP address of registry: ")
         # self.registryName = 'localhost'
         # port number of the registry
-        self.registryPort = 15406
+        self.registryPort = 15100
         # tcp socket connection to registry
         self.tcpClientSocket = socket(AF_INET, SOCK_STREAM)
         self.tcpClientSocket.connect((self.registryName, self.registryPort))
@@ -296,7 +296,7 @@ class peerMain:
 
         self.udpPortNum = self.udpClientSocket.getsockname()[1]
         # udp port of the registry
-        self.registryUDPPort = 15006
+        self.registryUDPPort = 15200
         # login info of the peer
         self.loginCredentials = (None, None)
         # online status of the peer
@@ -472,12 +472,18 @@ class peerMain:
             # if peer wants to display a list of online peers
             elif choice == "8":
                 ret = self.get_online_peers()
+                if(isinstance(ret, int)):
+                    print(Fore.RED + "No Peers Available at The Moment")
+                    continue
                 for i in ret:
                     print(Fore.BLUE  + i)
 
             # if peer wants to display a list of groups
             elif choice == "9":
                 ret = self.get_groups()
+                if(isinstance(ret, int)):
+                    print(Fore.RED + "No Groups Available")
+                    continue
                 for i in ret:
                     print(Fore.BLUE + i)
 

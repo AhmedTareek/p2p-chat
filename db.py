@@ -53,12 +53,16 @@ class DB:
     # get a list of all online peers
     def get_online_peers(self):
         online_peers = self.db.online_peers.find()
+        #print(len(list(online_peers)))
+        #if len(list(online_peers)) == 0: return 0
         names = [peer['username'] for peer in online_peers]
         return names
 
     # get a list of all groups
     def get_groups(self):
         groups = self.db.groups.find()
+        #print(len(list(groups)))
+        #if len(list(groups)) == 0: return 0
         group_names = [group['group_name'] for group in groups]
         return group_names
 

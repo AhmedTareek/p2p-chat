@@ -11,6 +11,10 @@ from colorama import Fore, Back, Style, init
 # Initialize colorama - needed for Windows systems
 init(autoreset=True)
 
+# flag to tell if a user is in a group or not
+global isInGroup
+isInGroup = 0
+
 
 # Server side of peer
 class PeerServer(threading.Thread):
@@ -78,7 +82,7 @@ class PeerServer(threading.Thread):
                         inputs.append(connected)
                         # if the user is not chatting, then the ip and the socket of
                         # this peer is assigned to server variables
-                        if self.isChatRequested == 0:
+                        if self.isChatRequested == 0 and isInGroup ==0:
                             print(self.username + " is connected from " + str(addr))
                             self.connectedPeerSocket = connected
                             self.connectedPeerIP = addr[0]
@@ -94,7 +98,7 @@ class PeerServer(threading.Thread):
                         if len(messageReceived) > 11 and messageReceived[:12] == "CHAT-REQUEST":
                             # text for proper input choices is printed however OK or REJECT is taken as input in main process of the peer
                             # if the socket that we received the data belongs to the peer that we are chatting with,
-                            # enters here
+                            # enters here and we are not in a group
                             if s is self.connectedPeerSocket:
                                 # parses the message
                                 messageReceived = messageReceived.split()
@@ -109,17 +113,26 @@ class PeerServer(threading.Thread):
                                 self.isChatRequested = 1
                             # if the socket that we received the data does not belong to the peer that we are chatting with
                             # and if the user is already chatting with someone else(isChatRequested = 1), then enters here
-                            elif s is not self.connectedPeerSocket and self.isChatRequested == 1:
+                            elif s is not self.connectedPeerSocket and (self.isChatRequested == 1 or isInGroup == 1):
                                 # sends a busy message to the peer that sends a chat request when this peer is 
                                 # already chatting with someone else
+
+                                # parses the message
+                                messageReceived = messageReceived.split()
+                                # gets the user name of the peer trying to connect with you
+                                tryingToConnectUserName = messageReceived[2]
+                                print(Fore.YELLOW + "[Notification]: " + tryingToConnectUserName + "tried to connect "
+                                      + "with you")
                                 message = "BUSY"
                                 s.send(message.encode())
                                 # remove the peer from the inputs list so that it will not monitor this socket
                                 inputs.remove(s)
-                        # if an OK message is received then ischatrequested is made 1 and then next messages will be shown to the peer of this server
+                        # if an OK message is received then ischatrequested is made 1 and then next messages will be
+                        # shown to the peer of this server
                         elif messageReceived == "OK":
                             self.isChatRequested = 1
-                        # if an REJECT message is received then ischatrequested is made 0 so that it can receive any other chat requests
+                        # if an REJECT message is received then ischatrequested is made 0 so that it can receive any
+                        # other chat requests
                         elif messageReceived == "REJECT":
                             self.isChatRequested = 0
                             inputs.remove(s)
@@ -245,6 +258,7 @@ class PeerClient(threading.Thread):
             elif self.responseReceived[0] == "BUSY":
                 print("Receiver peer is busy")
                 self.tcpClientSocket.close()
+                print("socket closed")
         # if the client is created with OK message it means that this is the client of receiver side peer so it sends
         # an OK message to the requesting side peer server that it connects and then waits for the user inputs.
         elif self.responseReceived == "OK":
@@ -388,11 +402,11 @@ class peerMain:
                     self.peerClient = PeerClient(searchStatus[0], int(searchStatus[1]), self.loginCredentials[0],
                                                  self.peerServer, None)
                     self.peerClient.start()
-                    l = Listener(self.tcpClientSocket)
-                    l.start()
+                    # l = Listener(self.tcpClientSocket)
+                    # l.start()
                     self.peerClient.join()
-                    l.turnoff(False)
-                    l.join()
+                    # l.turnoff(False)
+                    # l.join()
 
             # if this is the receiver side then it will get the prompt to accept an incoming request during the main
             # loop that's why response is evaluated in main process not the server thread even though the prompt is
@@ -423,20 +437,6 @@ class peerMain:
                 if ret == 1:
                     group_chat = GroupChat(self.udpClientSocket, self.right_group_member,
                                            self.tcpClientSocket, group_name, self.userName)
-                    # group_chat_info = {
-                    #         "udpClientSocket": group_chat.udpClientSocket,
-                    #         "right_group_member": "",
-                    #         "tcpClientSocket": group_chat.tcpClientSocket,
-                    #         "group_name": group_name,
-                    #         "userName": group_chat.userName,
-                    #         # Add other attributes as needed
-                    # }
-                    # GroupChatlist[self.userName] = [group_chat_info]
-                    # #GroupChatlist[self.userName].append(group_chat_info)
-                    # print(GroupChatlist)
-                    # print(GroupChatlist["karim"])
-                    # print(GroupChatlist["matwa"])
-                    # print(GroupChatlist["matwa"]["right_group_member"])
                     group_chat.start()
                     group_chat.join()
                 elif ret == 0:
@@ -476,7 +476,7 @@ class peerMain:
                     print(Fore.RED + "No Peers Available at The Moment")
                     continue
                 for i in ret:
-                    print(Fore.BLUE  + i)
+                    print(Fore.BLUE + i)
 
             # if peer wants to display a list of groups
             elif choice == "9":
@@ -656,6 +656,8 @@ class GroupChat(threading.Thread):
         self.userName = user_name
         self.sentMessages = {}
         self.receivedMessages = []
+        global isInGroup
+        isInGroup = 1
 
     def run(self):
         monitor_thread = threading.Thread(target=self.monitor)
@@ -724,8 +726,8 @@ class GroupChat(threading.Thread):
                 msg = self.tcpClientSocket.recv(1024).decode().split()
                 print(msg)
                 if msg[0] == "MAKE-HOST":
-                    self.is_host=True
-                if msg[0] == "CONNECT-RIGHT" and isinstance(msg[2], int):
+                    self.is_host = True
+                if msg[0] == "CONNECT-RIGHT":
                     self.right[0] = msg[1]
                     self.right[1] = int(msg[2])
                 elif msg[0] == "LEAVE-GRANTED":
@@ -742,6 +744,8 @@ class GroupChat(threading.Thread):
             except OSError as oErr:
                 logging.error("OSError: {0}".format(oErr))
         print("got out of monitor loop")
+        global isInGroup
+        isInGroup = 0
 
     def check_message(self, msg):
         # Replace this with your condition checking logic

@@ -326,17 +326,10 @@ class ClientThread(threading.Thread):
                 peer_data = db.get_peer_ip_udp_port(savedPeer)
                 msg = "CONNECT-RIGHT " + peer_data[0] + " " + peer_data[1]
                 # send message to peer to connect the new user
+
                 self.tcpClientSocket.send(msg.encode())
                 print("sent the message to the peer to connect-left")
-
-                res = "CONNECTED-SUCCESS"
-
-                print("recived response", res)
-                if res == "CONNECTED-SUCCESS":
-                    peerStatus[savedPeer] = 1
-                elif res == "CONNECTED-FAILED":
-                    peerStatus[savedPeer] = 0
-                # self.lock.release()
+                peerStatus[savedPeer] = 1
                 print("peer status is", peerStatus[savedPeer])
 
     def check_leaving_peers(self):
@@ -390,13 +383,15 @@ class UDPServer(threading.Thread):
     # then peer is disconnected
     def waitHelloMessage(self):
         if self.username is not None:
-            # make the user offline
-            db.user_logout(self.username)
             # search if the user in any group and return the group name
             groups = db.find_user_in_groups(self.username)
             if len(groups) == 1:  # not sure
+                # remove the user from any groups he is in
                 ClientThread.remove_peer_from_group(tcpThreads[self.username], groups[0], False)
-            # remove the user from any groups he is in
+            # make the user offline
+            db.user_logout(self.username)
+
+
             if self.username in tcpThreads:
                 del tcpThreads[self.username]
         self.tcpClientSocket.close()

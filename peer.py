@@ -7,7 +7,8 @@ import logging
 import bcrypt
 from datetime import datetime
 from colorama import Fore, Back, Style, init
-
+import pytest
+from unittest.mock import patch
 # Initialize colorama - needed for Windows systems
 init(autoreset=True)
 

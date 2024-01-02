@@ -8,7 +8,8 @@ import threading
 import select
 import logging
 import db
-
+import pytest
+from unittest.mock import patch
 
 # This class is used to process the peer messages sent to registry
 # for each peer connected to registry, a new client thread is created
@@ -269,7 +270,7 @@ class ClientThread(threading.Thread):
                     self.tcpClientSocket.send(response.encode())
 
             else:
-                # case where we will make new on the host
+                # case where we will make new one the host
                 after = db.get_peer_after_in_group(group_name, self.username)
                 pendingPeers[after] = "MAKE-HOST"
                 # update last to point to the new host

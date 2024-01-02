@@ -1,11 +1,14 @@
 from pymongo import MongoClient
-
+from unittest.mock import MagicMock
 
 # Includes database operations
 class DB:
 
     # db initializations
     def __init__(self):
+        self.client = MongoClient('mongodb://localhost:27017')
+        self.db = self.client['p2p-chat']
+    def __init__(self,mock_db):
         self.client = MongoClient('mongodb://localhost:27017')
         self.db = self.client['p2p-chat']
 

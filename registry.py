@@ -8,8 +8,6 @@ import threading
 import select
 import logging
 import db
-import pytest
-from unittest.mock import patch
 
 # This class is used to process the peer messages sent to registry
 # for each peer connected to registry, a new client thread is created
@@ -416,7 +414,7 @@ port = 15100
 portUDP = 15200
 
 # db initialization
-db = db.DB()
+db = db.DB(0)
 
 # gets the ip address of this peer
 # first checks to get it for windows devices

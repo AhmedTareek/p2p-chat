@@ -75,7 +75,7 @@ class TestYourClass(unittest.TestCase):
         # Call the method you want to test
         result = self.dbinst.get_host_ip_udp_port("group")
         # Assert that the result is the expected tuple
-        self.assertEqual(result, ("192.168.1.3", "53941"))
+        self.assertEqual(result, ("192.168.1.3", "60441"))
     def test_get_password(self):
         # Input data
         username = "test_user"

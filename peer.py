@@ -284,7 +284,7 @@ class peerMain:
     # peer initializations
     def __init__(self):
         # ip address of the registry
-        self.registryName = input("Enter IP address of registry: ")
+        self.registryName = "100.64.136.52"
         # self.registryName = 'localhost'
         # port number of the registry
         self.registryPort = 15100
@@ -322,13 +322,16 @@ class peerMain:
         # as long as the user is not logged out, asks to select an option in the menu
         while choice != "3":
             # menu selection prompt
-            choice = input("Choose: \nCreate account: 1\nLogin: 2\nExit: 3\nSearch: 4\nStart a chat: 5\nJoin Chat "
-                           "Room: 6\nCreate Chat room: 7\nList online peers: 8\nList groups: 9\n")
+            # choice = input("Choose: \nCreate account: 1\nLogin: 2\nExit: 3\nSearch: 4\nStart a chat: 5\nJoin Chat "
+            #                "Room: 6\nCreate Chat room: 7\nList online peers: 8\nList groups: 9\n")
+            choice = 1
             # if choice is 1, creates an account with the username
             # and password entered by the user
             if choice == "1":
-                username = input("username: ")
-                password = input("password: ")
+                # username = input("username: ")
+                # password = input("password: ")
+                username = "mohamed"
+                password = "1234"
 
                 self.createAccount(username, password)
             # if choice is 2 and user is not logged in, asks for the username
@@ -487,11 +490,12 @@ class peerMain:
                     continue
                 for i in ret:
                     print(Fore.BLUE + i)
-
+            break
         # if main process is not ended with cancel selection
         # socket of the client is closed
         if choice != "CANCEL":
             self.tcpClientSocket.close()
+
 
     # account creation function
     def createAccount(self, username, password):
@@ -515,8 +519,10 @@ class peerMain:
         logging.info("Received from " + self.registryName + " -> " + response)
         if response == "join-success":
             print(Fore.GREEN + "Account created...")
+            return "join-success"
         elif response == "join-exist":
             print(Fore.RED + "choose another username or login...")
+            return "join-exist"
 
     # login function
     def login(self, username, password, peerServerPort):
@@ -548,12 +554,13 @@ class peerMain:
             return 3
 
     # logout function
-    def logout(self, option):
+    def logout(self, option=1):
         # a logout message is composed and sent to registry
         # timer is stopped
         if option == 1:
             message = "LOGOUT " + self.loginCredentials[0]
             self.timer.cancel()
+            return "LOGOUT"
         else:
             message = "LOGOUT"
         logging.info("Send to " + self.registryName + ":" + str(self.registryPort) + " -> " + message)
@@ -772,3 +779,4 @@ class Listener(threading.Thread):
 # to change peer pointers on leave
 GroupChatlist = {}
 main = peerMain()
+

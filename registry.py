@@ -1,7 +1,3 @@
-'''
-    ##  Implementation of registry
-    ##  150114822 - Eren Ulaş
-'''
 import time
 from socket import *
 import threading
@@ -390,7 +386,6 @@ class UDPServer(threading.Thread):
                 ClientThread.remove_peer_from_group(tcpThreads[self.username], groups[0], False)
             # make the user offline
             db.user_logout(self.username)
-
 
             if self.username in tcpThreads:
                 del tcpThreads[self.username]

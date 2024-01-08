@@ -16,6 +16,58 @@ global isInGroup
 isInGroup = 0
 
 
+def establish_connection(server_ip, server_port=15100):
+    MAX_RETRIES = 3
+    RETRY_DELAY = 3  # seconds
+    # Create a TCP/IP socket
+    tcp_socket = socket(AF_INET, SOCK_STREAM)
+
+    # Define the server address and port
+    server_address = (server_ip, server_port)
+
+    # Attempt to connect to the server
+    connected = False
+    retries = 0
+    while not connected and retries < MAX_RETRIES:
+        try:
+            print(Fore.YELLOW + Style.BRIGHT + f"Attempting to connect to {server_address}")
+            tcp_socket.connect(server_address)
+            connected = True
+            print(Fore.GREEN + "Connection established.")
+        except error as e:
+            print(f"Connection failed: {e}")
+            retries += 1
+            if retries < MAX_RETRIES:
+                print(f"Retrying in {RETRY_DELAY} seconds...")
+                time.sleep(RETRY_DELAY)
+            else:
+                print(Fore.RED + "Maximum retries reached. Could not establish connection.")
+                return None
+
+    return tcp_socket
+
+
+def send_data(tcp_socket, data, server_ip, server_port=15100):
+    if not tcp_socket:
+        print("No connection established.")
+        return False, tcp_socket
+
+    try:
+        # Check if the socket is still connected before sending data
+        tcp_socket.sendall(data.encode())
+        print("Data sent successfully.")
+        return True, tcp_socket
+    except error as e:
+        print(f"Error sending data: {e}")
+        # Attempt to reconnect
+        tcp_socket = establish_connection(server_ip, server_port)
+        if tcp_socket:
+            # Retry sending data after reconnecting
+            return send_data(tcp_socket, data, server_ip, server_port)[0], tcp_socket
+        else:
+            return False, tcp_socket
+
+
 # Server side of peer
 class PeerServer(threading.Thread):
 
@@ -82,7 +134,7 @@ class PeerServer(threading.Thread):
                         inputs.append(connected)
                         # if the user is not chatting, then the ip and the socket of
                         # this peer is assigned to server variables
-                        if self.isChatRequested == 0 and isInGroup ==0:
+                        if self.isChatRequested == 0 and isInGroup == 0:
                             print(self.username + " is connected from " + str(addr))
                             self.connectedPeerSocket = connected
                             self.connectedPeerIP = addr[0]
@@ -193,6 +245,7 @@ class PeerClient(threading.Thread):
     def run(self):
         print(Fore.GREEN + "Peer client started...")
         # connects to the server of other peer
+        print(self.ipToConnect,self.portToConnect)
         self.tcpClientSocket.connect((self.ipToConnect, self.portToConnect))
         # if the server of this peer is not connected by someone else and if this is the requester side peer client
         # then enters here
@@ -301,9 +354,11 @@ class peerMain:
         # self.registryName = 'localhost'
         # port number of the registry
         self.registryPort = 15100
-        # tcp socket connection to registry
-        self.tcpClientSocket = socket(AF_INET, SOCK_STREAM)
-        self.tcpClientSocket.connect((self.registryName, self.registryPort))
+        # # tcp socket connection to registry
+        # self.tcpClientSocket = socket(AF_INET, SOCK_STREAM)
+        # self.tcpClientSocket.connect((self.registryName, self.registryPort))
+
+        self.tcpClientSocket = establish_connection(self.registryName, self.registryPort)
         # initializes udp socket which is used to send hello messages
         self.udpClientSocket = socket(AF_INET, SOCK_DGRAM)
         self.udpClientSocket.bind(('', 0))
@@ -451,18 +506,6 @@ class peerMain:
                     print("Group Created Successfully")
                     group_chat = GroupChat(self.udpClientSocket, self.right_group_member,
                                            self.tcpClientSocket, group_name, self.userName, True)
-                    # group_chat_info = {
-                    #         "udpClientSocket": group_chat.udpClientSocket,
-                    #         "right_group_member": "",
-                    #         "tcpClientSocket": group_chat.tcpClientSocket,
-                    #         "group_name": group_name,
-                    #         "userName": group_chat.userName
-                    #         # Add other attributes as needed
-                    # }
-                    # GroupChatlist[self.userName] = [group_chat_info]
-                    # #GroupChatlist[self.userName].append(group_chat_info)
-                    # print(GroupChatlist)
-                    # print(GroupChatlist["karim"])
 
                     group_chat.start()
                     group_chat.join()
@@ -472,7 +515,7 @@ class peerMain:
             # if peer wants to display a list of online peers
             elif choice == "8":
                 ret = self.get_online_peers()
-                if(isinstance(ret, int)):
+                if (isinstance(ret, int)):
                     print(Fore.RED + "No Peers Available at The Moment")
                     continue
                 for i in ret:
@@ -481,7 +524,7 @@ class peerMain:
             # if peer wants to display a list of groups
             elif choice == "9":
                 ret = self.get_groups()
-                if(isinstance(ret, int)):
+                if (isinstance(ret, int)):
                     print(Fore.RED + "No Groups Available")
                     continue
                 for i in ret:
@@ -524,7 +567,9 @@ class peerMain:
         # a login message is composed and sent to registry
         # an integer is returned according to each response
         message = "SALT " + username
-        self.tcpClientSocket.send(message.encode())
+        # self.tcpClientSocket.send(message.encode())
+
+        self.tcpClientSocket = send_data(self.tcpClientSocket, message, self.registryName, self.registryPort)[1]
         salt = self.tcpClientSocket.recv(1024).decode()
 
         hashed_password = bcrypt.hashpw(password.encode(), salt.encode()).decode()
